@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { Box, HStack } from "@chakra-ui/react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Box, HStack, Input } from "@chakra-ui/react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -13,14 +13,17 @@ import { useAppStore } from "../store";
 interface EditorProps {
   noteId: string;
   partykitHost: string;
+  onTitleChange?: (title: string) => void;
 }
 
-export function CollaborativeEditor({ noteId, partykitHost }: EditorProps) {
+export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: EditorProps) {
   const { userName, userColor } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
+  const [title, setTitle] = useState("");
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<YPartyKitProvider | null>(null);
+  const titleMapRef = useRef<Y.Map<string> | null>(null);
 
   // Initialize once
   if (!ydocRef.current) {
@@ -38,6 +41,12 @@ export function CollaborativeEditor({ noteId, partykitHost }: EditorProps) {
   const ydoc = ydocRef.current;
   const provider = providerRef.current;
 
+  // Initialize title map
+  if (!titleMapRef.current) {
+    titleMapRef.current = ydoc.getMap<string>("meta");
+  }
+  const titleMap = titleMapRef.current;
+
   useEffect(() => {
     const onStatus = ({ status }: { status: string }) => {
       setIsConnected(status === "connected");
@@ -54,6 +63,22 @@ export function CollaborativeEditor({ noteId, partykitHost }: EditorProps) {
     };
   }, [provider]);
 
+  // Sync title from Yjs
+  useEffect(() => {
+    const updateTitle = () => {
+      const newTitle = titleMap.get("title") || "";
+      setTitle(newTitle);
+      onTitleChange?.(newTitle);
+    };
+
+    titleMap.observe(updateTitle);
+    updateTitle();
+
+    return () => {
+      titleMap.unobserve(updateTitle);
+    };
+  }, [titleMap, onTitleChange]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -69,6 +94,12 @@ export function CollaborativeEditor({ noteId, partykitHost }: EditorProps) {
       }, 0);
     };
   }, []);
+
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    setTitle(newTitle);
+    titleMap.set("title", newTitle);
+  }, [titleMap]);
 
   const editor = useEditor(
     {
@@ -106,6 +137,20 @@ export function CollaborativeEditor({ noteId, partykitHost }: EditorProps) {
 
   return (
     <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" overflow="hidden">
+      {/* Title input */}
+      <Box px={4} pt={4}>
+        <Input
+          value={title}
+          onChange={handleTitleChange}
+          placeholder="Untitled note..."
+          variant="flushed"
+          fontSize="xl"
+          fontWeight="bold"
+          border="none"
+          _focus={{ boxShadow: "none" }}
+        />
+      </Box>
+
       {/* Header with toolbar and collaborators */}
       <HStack
         justify="space-between"

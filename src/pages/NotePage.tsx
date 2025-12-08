@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -21,9 +21,9 @@ export function NotePage() {
   const { addRecentNote } = useAppStore();
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
+  const handleTitleChange = useCallback((title: string) => {
     if (noteId) {
-      addRecentNote(noteId, `Note ${noteId}`);
+      addRecentNote(noteId, title || `Note ${noteId}`);
     }
   }, [noteId, addRecentNote]);
 
@@ -66,7 +66,11 @@ export function NotePage() {
         </HStack>
 
         {/* Editor */}
-        <CollaborativeEditor noteId={noteId} partykitHost={PARTYKIT_HOST} />
+        <CollaborativeEditor
+          noteId={noteId}
+          partykitHost={PARTYKIT_HOST}
+          onTitleChange={handleTitleChange}
+        />
       </Container>
     </Box>
   );
