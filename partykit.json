@@ -1,0 +1,8 @@
+{
+  "name": "live-notes-app",
+  "main": "party/main.ts",
+  "compatibilityDate": "2024-01-01",
+  "parties": {
+    "notes": "party/index.ts"
+  }
+}

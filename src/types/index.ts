@@ -1,1 +1,11 @@
-// Type definitions for the app
+export interface Collaborator {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface RecentNote {
+  id: string;
+  title: string;
+  lastVisited: number;
+}

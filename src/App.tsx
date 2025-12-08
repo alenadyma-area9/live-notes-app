@@ -1,12 +1,16 @@
-import { Box, Heading, Text } from '@chakra-ui/react'
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Home } from "./pages/Home";
+import { NotePage } from "./pages/NotePage";
 
 function App() {
   return (
-    <Box p={8}>
-      <Heading mb={4}>Live Notes App</Heading>
-      <Text>Welcome to your notes application!</Text>
-    </Box>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/note/:noteId" element={<NotePage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
