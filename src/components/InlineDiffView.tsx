@@ -1,6 +1,6 @@
 import { Box, Text, HStack, VStack } from "@chakra-ui/react";
 import * as Y from "yjs";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface Block {
   type: "paragraph" | "heading1" | "heading2" | "bulletList" | "orderedList";
@@ -375,7 +375,6 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
   matches.sort((a, b) => a.newIdx - b.newIdx);
 
   // Build result by walking through new blocks in order
-  let matchIdx = 0;
   const processedOld = new Set<number>();
 
   for (let n = 0; n < newBlocks.length; n++) {
