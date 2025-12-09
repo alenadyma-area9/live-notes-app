@@ -1,73 +1,102 @@
-# React + TypeScript + Vite
+# Live Notes
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Real-time collaborative note-taking app. Create, edit, and share notes instantly with anyone.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- ✅ **Real-time collaboration** - Multiple users edit simultaneously
+- ✅ **No sign-up required** - Share a link, start collaborating
+- ✅ **Rich text editing** - Bold, italic, headings, lists
+- ✅ **Live cursors** - See where others are typing
+- ✅ **Online presence** - See who's currently editing
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend:** React, TypeScript, Vite, Chakra UI v3
+- **Editor:** Tiptap with Yjs CRDT
+- **Real-time:** PartyKit + y-partykit
+- **State:** Zustand with localStorage persistence
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Prerequisites
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js 18+
+- npm
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Installation
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Run both servers:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**Terminal 1 - Frontend:**
+```bash
+npm run dev
 ```
+
+**Terminal 2 - PartyKit:**
+```bash
+npm run dev:party
+```
+
+Open http://localhost:5173
+
+### Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Vite dev server |
+| `npm run dev:party` | Start PartyKit dev server |
+| `npm run build` | Build for production |
+| `npm run check` | TypeScript type checking |
+| `npm run lint` | Run ESLint |
+
+## Deployment
+
+### PartyKit (WebSocket Server)
+
+```bash
+npx partykit login
+npx partykit deploy
+```
+
+### Frontend (Vercel)
+
+```bash
+vercel --prod
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_PARTYKIT_HOST` | PartyKit server URL | `localhost:1999` |
+
+## Project Structure
+
+```
+src/
+├── components/     # React components
+│   ├── Editor.tsx          # Collaborative Tiptap editor
+│   ├── Toolbar.tsx         # Formatting toolbar
+│   └── CollaboratorsList.tsx
+├── pages/          # Route pages
+│   ├── Home.tsx
+│   └── NotePage.tsx
+├── store/          # Zustand store
+├── types/          # TypeScript types
+└── utils/          # Helper functions
+
+party/              # PartyKit server
+├── index.ts        # Yjs collaboration server
+└── main.ts         # Main entry point
+```
+
+## License
+
+MIT

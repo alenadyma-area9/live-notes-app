@@ -1,3 +1,13 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+
+# Environment files (local overrides)
+.env*.local
+
 # Logs
 logs
 *.log
@@ -7,20 +17,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# Editor directories
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.partykit  
+
+# OS files
+.DS_Store
+
+# PartyKit & Vercel cache
+.partykit
 .vercel
