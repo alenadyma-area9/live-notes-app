@@ -11,6 +11,7 @@ import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
 import { InlineDiffView } from "./InlineDiffView";
+import { RecentChangesExtension, recentChangesStore } from "./RecentChangesExtension";
 import { useAppStore } from "../store";
 
 interface EditorProps {
@@ -156,7 +157,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
 
   const handleShowDiff = useCallback((diff: DiffState) => {
     setDiffState(diff);
-    setHistoryOpen(false);
+    // Keep history panel open so user can navigate between versions
   }, []);
 
   const handleCloseDiff = useCallback(() => {
@@ -183,6 +184,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
             color: userColor,
           },
         }),
+        RecentChangesExtension,
       ],
       editorProps: {
         attributes: {
@@ -196,6 +198,102 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     [provider, userName, userColor, registerUser]
   );
 
+  // Track remote changes via Yjs and highlight them
+  useEffect(() => {
+    const xmlFragment = ydoc.getXmlFragment("default");
+
+    let lastLocalChange = 0;
+
+    const observer = (events: Y.YEvent<Y.XmlFragment>[], transaction: Y.Transaction) => {
+      // Skip if this is our own change
+      if (transaction.local) {
+        lastLocalChange = Date.now();
+        return;
+      }
+
+      // Skip if we just made a local change (debounce)
+      if (Date.now() - lastLocalChange < 100) {
+        return;
+      }
+
+      // Get remote user info
+      const awareness = provider.awareness;
+      let remoteUser: { name: string; color: string } | null = null;
+
+      for (const [clientId, state] of awareness.getStates().entries()) {
+        if (clientId !== awareness.clientID) {
+          const s = state as { user?: { name: string; color: string } };
+          if (s.user) {
+            remoteUser = s.user;
+            break;
+          }
+        }
+      }
+
+      if (!remoteUser || !editor) return;
+
+      // Find inserted content positions
+      for (const event of events) {
+        if (event.changes.delta) {
+          let pos = 1; // ProseMirror starts at 1
+
+          for (const delta of event.changes.delta) {
+            if (delta.retain) {
+              pos += delta.retain;
+            } else if (delta.insert) {
+              // Calculate length of inserted content
+              let insertLength = 0;
+              if (typeof delta.insert === "string") {
+                insertLength = delta.insert.length;
+              } else if (Array.isArray(delta.insert)) {
+                insertLength = delta.insert.length;
+              } else {
+                insertLength = 1;
+              }
+
+              if (insertLength > 0) {
+                recentChangesStore.addChange(
+                  pos,
+                  pos + insertLength,
+                  remoteUser.color,
+                  remoteUser.name
+                );
+              }
+              pos += insertLength;
+            }
+          }
+        }
+      }
+
+      // Trigger editor update to show decorations
+      if (editor && editor.view) {
+        setTimeout(() => {
+          editor.view.dispatch(editor.state.tr);
+        }, 10);
+      }
+    };
+
+    xmlFragment.observeDeep(observer);
+
+    return () => {
+      xmlFragment.unobserveDeep(observer);
+      recentChangesStore.clear();
+    };
+  }, [ydoc, provider, editor]);
+
+  // Refresh decorations periodically for fading effect
+  useEffect(() => {
+    if (!editor) return;
+
+    const interval = setInterval(() => {
+      if (recentChangesStore.changes.length > 0) {
+        editor.view.dispatch(editor.state.tr);
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [editor]);
+
   if (!isConnected || !isUserRegistered) {
     return (
       <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" p={8} textAlign="center">
@@ -207,57 +305,92 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
   // Show diff view instead of editor
   if (diffState) {
     return (
-      <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" overflow="hidden">
-        {/* Diff header */}
-        <HStack px={4} py={3} bg="blue.50" justify="space-between" borderBottom="1px solid" borderColor="gray.200">
-          <HStack>
-            <Badge colorPalette="blue" size="lg">Comparing Changes</Badge>
-            <Text fontSize="sm" color="gray.600">
-              {title || "Untitled"}
-            </Text>
+      <>
+        <Box
+          border="1px solid"
+          borderColor="gray.200"
+          borderRadius="md"
+          bg="white"
+          overflow="hidden"
+        >
+          {/* Diff header */}
+          <HStack px={4} py={3} bg="blue.50" justify="space-between" borderBottom="1px solid" borderColor="gray.200">
+            <HStack>
+              <Badge colorPalette="blue" size="lg">Comparing Changes</Badge>
+              <Text fontSize="sm" color="gray.600">
+                {title || "Untitled"}
+              </Text>
+            </HStack>
+            <HStack>
+              <Button
+                size="sm"
+                colorPalette="blue"
+                onClick={async () => {
+                  const protocol = partykitHost.includes("localhost") ? "http" : "https";
+                  await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/restore/${diffState.versionId}`, {
+                    method: "POST",
+                  });
+                  handleCloseDiff();
+                  handleHistoryRestore();
+                }}
+              >
+                Restore This Version
+              </Button>
+              <IconButton
+                aria-label="Version history"
+                variant={historyOpen ? "solid" : "ghost"}
+                colorPalette={historyOpen ? "blue" : "gray"}
+                size="sm"
+                onClick={() => setHistoryOpen(!historyOpen)}
+              >
+                <LuHistory />
+              </IconButton>
+              <IconButton
+                aria-label="Close diff"
+                variant="ghost"
+                size="sm"
+                onClick={handleCloseDiff}
+              >
+                <LuX />
+              </IconButton>
+            </HStack>
           </HStack>
-          <HStack>
-            <Button
-              size="sm"
-              colorPalette="blue"
-              onClick={async () => {
-                const protocol = partykitHost.includes("localhost") ? "http" : "https";
-                await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/restore/${diffState.versionId}`, {
-                  method: "POST",
-                });
-                handleCloseDiff();
-                handleHistoryRestore();
-              }}
-            >
-              Restore This Version
-            </Button>
-            <IconButton
-              aria-label="Close diff"
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseDiff}
-            >
-              <LuX />
-            </IconButton>
-          </HStack>
-        </HStack>
 
-        {/* Diff content */}
-        <InlineDiffView
-          oldDoc={diffState.oldDoc}
-          newDoc={diffState.newDoc}
-          oldText=""
-          newText=""
-          oldVersion={diffState.oldVersion}
-          newVersion={diffState.newVersion}
+          {/* Diff content */}
+          <InlineDiffView
+            oldDoc={diffState.oldDoc}
+            newDoc={diffState.newDoc}
+            oldText=""
+            newText=""
+            oldVersion={diffState.oldVersion}
+            newVersion={diffState.newVersion}
+          />
+        </Box>
+
+        {/* History Panel - always show when open */}
+        <HistoryPanel
+          noteId={noteId}
+          partykitHost={partykitHost}
+          isOpen={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          onRestore={handleHistoryRestore}
+          currentDoc={ydoc}
+          onShowDiff={handleShowDiff}
+          selectedVersionId={diffState?.versionId}
         />
-      </Box>
+      </>
     );
   }
 
   return (
     <>
-      <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" overflow="hidden">
+      <Box
+        border="1px solid"
+        borderColor="gray.200"
+        borderRadius="md"
+        bg="white"
+        overflow="hidden"
+      >
         {/* Title input */}
         <HStack px={4} pt={4} justify="space-between">
           <Input
@@ -348,6 +481,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
         onRestore={handleHistoryRestore}
         currentDoc={ydoc}
         onShowDiff={handleShowDiff}
+        selectedVersionId={diffState?.versionId}
       />
     </>
   );

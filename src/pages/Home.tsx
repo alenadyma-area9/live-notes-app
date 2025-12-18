@@ -3,21 +3,20 @@ import {
   Box,
   Button,
   Container,
-  Heading,
   Text,
   VStack,
   HStack,
-  Input,
   Card,
   IconButton,
 } from "@chakra-ui/react";
 import { LuPlus, LuFileText, LuTrash2 } from "react-icons/lu";
 import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
+import { Header } from "../components/Header";
 
 export function Home() {
   const navigate = useNavigate();
-  const { userName, setUserName, recentNotes, removeRecentNote } = useAppStore();
+  const { recentNotes, removeRecentNote } = useAppStore();
 
   const handleCreateNote = () => {
     const noteId = generateNoteId();
@@ -34,29 +33,11 @@ export function Home() {
   };
 
   return (
-    <Box minH="100vh" bg="gray.50" py={10}>
-      <Container maxW="container.md">
+    <Box minH="100vh" bg="gray.50">
+      <Header showNameInput />
+
+      <Container maxW="900px" py={8}>
         <VStack gap={8} align="stretch">
-          {/* Header */}
-          <VStack gap={2}>
-            <Heading size="2xl">Live Notes</Heading>
-            <Text color="gray.600">Real-time collaborative note-taking</Text>
-          </VStack>
-
-          {/* User Name */}
-          <Card.Root p={4}>
-            <HStack>
-              <Text fontWeight="medium" whiteSpace="nowrap">Your name:</Text>
-              <Input
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Enter your name"
-                size="sm"
-                maxW="200px"
-              />
-            </HStack>
-          </Card.Root>
-
           {/* Create Note Button */}
           <Button
             colorPalette="blue"
@@ -69,7 +50,7 @@ export function Home() {
           {/* Recent Notes */}
           {recentNotes.length > 0 && (
             <Box>
-              <Heading size="md" mb={4}>Recent Notes</Heading>
+              <Text fontSize="xl" fontWeight="bold" mb={4}>Recent Notes</Text>
               <VStack gap={2} align="stretch">
                 {recentNotes.map((note) => (
                   <Card.Root

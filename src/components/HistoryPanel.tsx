@@ -35,6 +35,7 @@ interface HistoryPanelProps {
   onRestore: () => void;
   currentDoc?: Y.Doc;
   onShowDiff?: (diff: DiffState) => void;
+  selectedVersionId?: string;
 }
 
 // Helper to decode base64 to Uint8Array
@@ -47,7 +48,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-export function HistoryPanel({ noteId, partykitHost, isOpen, onClose, onRestore, currentDoc, onShowDiff }: HistoryPanelProps) {
+export function HistoryPanel({ noteId, partykitHost, isOpen, onClose, onRestore, currentDoc, onShowDiff, selectedVersionId }: HistoryPanelProps) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState<string | null>(null);
@@ -161,13 +162,14 @@ export function HistoryPanel({ noteId, partykitHost, isOpen, onClose, onRestore,
   return (
     <Box
       position="fixed"
-      right={0}
-      top={0}
-      bottom={0}
+      right={4}
+      top="60px"
+      bottom={4}
       w="320px"
       bg="white"
-      borderLeft="1px solid"
+      border="1px solid"
       borderColor="gray.200"
+      borderRadius="md"
       boxShadow="lg"
       zIndex={100}
       display="flex"
@@ -205,14 +207,17 @@ export function HistoryPanel({ noteId, partykitHost, isOpen, onClose, onRestore,
           </VStack>
         ) : (
           <VStack gap={2} align="stretch">
-            {versions.map((version, index) => (
+            {versions.map((version, index) => {
+              const isSelected = selectedVersionId === version.id;
+              return (
               <Box
                 key={version.id}
                 p={3}
                 borderRadius="md"
-                border="1px solid"
-                borderColor="gray.200"
-                _hover={{ bg: "gray.50" }}
+                border="2px solid"
+                borderColor={isSelected ? "blue.400" : "gray.200"}
+                bg={isSelected ? "blue.50" : "white"}
+                _hover={{ bg: isSelected ? "blue.50" : "gray.50" }}
               >
                 <VStack align="stretch" gap={2}>
                   <Box>
@@ -270,7 +275,7 @@ export function HistoryPanel({ noteId, partykitHost, isOpen, onClose, onRestore,
                   )}
                 </VStack>
               </Box>
-            ))}
+            )})}
           </VStack>
         )}
       </Box>
