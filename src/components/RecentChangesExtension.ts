@@ -71,7 +71,7 @@ export const RecentChangesExtension = Extension.create<RecentChangesOptions>({
             return { decorations: DecorationSet.empty };
           },
 
-          apply(tr, state, _oldState, newState) {
+          apply(tr, _state, _oldState, newState) {
             // Cleanup old changes
             recentChangesStore.cleanup();
 

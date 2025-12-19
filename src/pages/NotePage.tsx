@@ -7,7 +7,7 @@ import {
   Button,
   Text,
 } from "@chakra-ui/react";
-import { LuArrowLeft, LuCopy, LuCheck } from "react-icons/lu";
+import { LuArrowLeft, LuCopy, LuCheck, LuTrash2 } from "react-icons/lu";
 import { CollaborativeEditor } from "../components/Editor";
 import { Header } from "../components/Header";
 import { useAppStore } from "../store";
@@ -17,8 +17,10 @@ const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
 export function NotePage() {
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
-  const { addRecentNote } = useAppStore();
+  const { addRecentNote, removeRecentNote, isNoteOwner } = useAppStore();
   const [copied, setCopied] = useState(false);
+
+  const isOwner = noteId ? isNoteOwner(noteId) : false;
 
   const handleTitleChange = useCallback((title: string) => {
     if (noteId) {
@@ -30,6 +32,13 @@ export function NotePage() {
     await navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDelete = () => {
+    if (noteId && confirm("Are you sure you want to delete this note?")) {
+      removeRecentNote(noteId);
+      navigate("/");
+    }
   };
 
   if (!noteId) {
@@ -67,6 +76,17 @@ export function NotePage() {
               {copied ? <LuCheck /> : <LuCopy />}
               {copied ? "Copied!" : "Share Link"}
             </Button>
+            {isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                colorPalette="red"
+                onClick={handleDelete}
+              >
+                <LuTrash2 />
+                Delete
+              </Button>
+            )}
           </HStack>
         </HStack>
 

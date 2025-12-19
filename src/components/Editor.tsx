@@ -481,7 +481,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
         onRestore={handleHistoryRestore}
         currentDoc={ydoc}
         onShowDiff={handleShowDiff}
-        selectedVersionId={diffState?.versionId}
+        selectedVersionId={undefined}
       />
     </>
   );
