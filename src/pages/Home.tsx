@@ -14,7 +14,7 @@ import {
   Input,
   Tooltip,
 } from "@chakra-ui/react";
-import { LuPlus, LuFileText, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuSearch, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid } from "react-icons/lu";
+import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuSearch, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid } from "react-icons/lu";
 import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
 import { Header } from "../components/Header";

@@ -376,7 +376,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     };
 
     // Debounce to avoid too many updates
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
     const handleUpdate = () => {
       clearTimeout(timeout);
       timeout = setTimeout(savePreview, 1000);
