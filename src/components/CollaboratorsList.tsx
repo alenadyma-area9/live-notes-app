@@ -12,9 +12,10 @@ interface Collaborator {
 interface CollaboratorsListProps {
   provider: YPartyKitProvider;
   currentUser: { name: string; color: string };
+  maxDisplay?: number;
 }
 
-export function CollaboratorsList({ provider, currentUser }: CollaboratorsListProps) {
+export function CollaboratorsList({ provider, currentUser, maxDisplay = 4 }: CollaboratorsListProps) {
   const { userId } = useAppStore();
   const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(new Map());
 
@@ -61,9 +62,13 @@ export function CollaboratorsList({ provider, currentUser }: CollaboratorsListPr
     })),
   ];
 
+  const visibleUsers = allUsers.slice(0, maxDisplay);
+  const hiddenCount = allUsers.length - maxDisplay;
+  const hiddenUsers = allUsers.slice(maxDisplay);
+
   return (
-    <HStack gap={1}>
-      {allUsers.map((user) => (
+    <HStack gap={-2}>
+      {visibleUsers.map((user) => (
         <Tooltip.Root key={user.id} openDelay={200} closeDelay={100}>
           <Tooltip.Trigger asChild>
             <Box
@@ -77,6 +82,9 @@ export function CollaboratorsList({ provider, currentUser }: CollaboratorsListPr
               border="2px solid white"
               boxShadow={user.isMe ? "0 0 0 3px " + user.color : "sm"}
               cursor="default"
+              position="relative"
+              zIndex={user.isMe ? 10 : 1}
+              _hover={{ zIndex: 20 }}
             >
               <Text fontSize="xs" fontWeight="bold" color="white">
                 {user.name.charAt(0).toUpperCase()}
@@ -90,10 +98,34 @@ export function CollaboratorsList({ provider, currentUser }: CollaboratorsListPr
           </Tooltip.Positioner>
         </Tooltip.Root>
       ))}
-      {allUsers.length > 1 && (
-        <Text ml={1} fontSize="sm" color="gray.600">
-          {allUsers.length} online
-        </Text>
+
+      {hiddenCount > 0 && (
+        <Tooltip.Root openDelay={200} closeDelay={100}>
+          <Tooltip.Trigger asChild>
+            <Box
+              w={8}
+              h={8}
+              borderRadius="full"
+              bg="gray.400"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              border="2px solid white"
+              boxShadow="sm"
+              cursor="default"
+              ml={1}
+            >
+              <Text fontSize="xs" fontWeight="bold" color="white">
+                +{hiddenCount}
+              </Text>
+            </Box>
+          </Tooltip.Trigger>
+          <Tooltip.Positioner>
+            <Tooltip.Content>
+              {hiddenUsers.map(u => u.name).join(", ")}
+            </Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
       )}
     </HStack>
   );

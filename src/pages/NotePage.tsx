@@ -2,15 +2,8 @@ import { useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
-  Container,
-  HStack,
-  Button,
   Text,
-  IconButton,
-  useBreakpointValue,
-  Tooltip,
 } from "@chakra-ui/react";
-import { LuArrowLeft, LuCopy, LuCheck, LuTrash2 } from "react-icons/lu";
 import { CollaborativeEditor } from "../components/Editor";
 import { Header } from "../components/Header";
 import { useAppStore } from "../store";
@@ -22,7 +15,6 @@ export function NotePage() {
   const navigate = useNavigate();
   const { addRecentNote, removeRecentNote, isNoteOwner } = useAppStore();
   const [copied, setCopied] = useState(false);
-  const isMobile = useBreakpointValue({ base: true, md: false });
 
   const isOwner = noteId ? isNoteOwner(noteId) : false;
 
@@ -53,100 +45,27 @@ export function NotePage() {
     }
   };
 
+  const handleBack = () => navigate("/");
+
   if (!noteId) {
     return <Text>Invalid note ID</Text>;
   }
 
   return (
-    <Box minH="100vh" bg="gray.50">
+    <Box h="100vh" bg="gray.50" overflow="hidden" display="flex" flexDirection="column">
       <Header />
 
-      <Container maxW="900px" py={4}>
-        {/* Sub Header */}
-        <HStack justify="space-between" mb={4}>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/")}
-          >
-            <LuArrowLeft />
-            <Text display={{ base: "inline", sm: "none" }}>Back</Text>
-            <Text display={{ base: "none", sm: "inline" }}>Back to notes</Text>
-          </Button>
-          <HStack gap={2}>
-            {/* Share button */}
-            {isMobile ? (
-              <Tooltip.Root openDelay={100} closeDelay={50}>
-                <Tooltip.Trigger asChild>
-                  <IconButton
-                    aria-label={copied ? "Copied!" : "Share Link"}
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopyLink}
-                    colorPalette={copied ? "green" : "gray"}
-                  >
-                    {copied ? <LuCheck /> : <LuCopy />}
-                  </IconButton>
-                </Tooltip.Trigger>
-                <Tooltip.Positioner>
-                  <Tooltip.Content>
-                    {copied ? "Copied!" : "Share Link"}
-                  </Tooltip.Content>
-                </Tooltip.Positioner>
-              </Tooltip.Root>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopyLink}
-                colorPalette={copied ? "green" : "gray"}
-              >
-                {copied ? <LuCheck /> : <LuCopy />}
-                {copied ? "Copied!" : "Share Link"}
-              </Button>
-            )}
-
-            {/* Delete button - owner only */}
-            {isOwner && (
-              isMobile ? (
-                <Tooltip.Root openDelay={100} closeDelay={50}>
-                  <Tooltip.Trigger asChild>
-                    <IconButton
-                      aria-label="Delete"
-                      variant="outline"
-                      size="sm"
-                      colorPalette="red"
-                      onClick={handleDelete}
-                    >
-                      <LuTrash2 />
-                    </IconButton>
-                  </Tooltip.Trigger>
-                  <Tooltip.Positioner>
-                    <Tooltip.Content>Delete</Tooltip.Content>
-                  </Tooltip.Positioner>
-                </Tooltip.Root>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  colorPalette="red"
-                  onClick={handleDelete}
-                >
-                  <LuTrash2 />
-                  Delete
-                </Button>
-              )
-            )}
-          </HStack>
-        </HStack>
-
-        {/* Editor */}
+      <Box flex={1} maxW="1200px" w="100%" mx="auto" px={4} py={4} overflow="hidden">
         <CollaborativeEditor
           noteId={noteId}
           partykitHost={PARTYKIT_HOST}
           onTitleChange={handleTitleChange}
+          onBack={handleBack}
+          onShare={handleCopyLink}
+          onDelete={isOwner ? handleDelete : undefined}
+          shareButtonState={copied ? "copied" : "default"}
         />
-      </Container>
+      </Box>
     </Box>
   );
 }

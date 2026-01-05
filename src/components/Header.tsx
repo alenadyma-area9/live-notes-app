@@ -1,4 +1,4 @@
-import { Box, HStack, Text, Container, Input, Tooltip } from "@chakra-ui/react";
+import { Box, HStack, Text, Input, Tooltip } from "@chakra-ui/react";
 import { useAppStore } from "../store";
 import { LuPenLine } from "react-icons/lu";
 
@@ -10,8 +10,8 @@ export function Header({ showNameInput = false }: HeaderProps) {
   const { userName, userColor, setUserName } = useAppStore();
 
   return (
-    <Box bg="white" borderBottom="1px solid" borderColor="gray.200" py={3}>
-      <Container maxW="900px">
+    <Box bg="white" borderBottom="1px solid" borderColor="gray.200" py={3} px={4}>
+      <Box maxW="800px" mx="auto">
         <HStack justify="space-between">
           {/* Logo and Title */}
           <HStack gap={2}>
@@ -80,7 +80,7 @@ export function Header({ showNameInput = false }: HeaderProps) {
             </Tooltip.Root>
           </HStack>
         </HStack>
-      </Container>
+      </Box>
     </Box>
   );
 }

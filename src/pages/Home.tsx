@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -14,12 +14,55 @@ import {
   Input,
   Tooltip,
 } from "@chakra-ui/react";
-import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuSearch, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid } from "react-icons/lu";
+import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid } from "react-icons/lu";
 import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
 import { Header } from "../components/Header";
 
 const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
+
+// Component that shows tooltip only when text is truncated
+function TruncatedText({
+  children,
+  maxW,
+  ...textProps
+}: {
+  children: string;
+  maxW?: string;
+} & React.ComponentProps<typeof Text>) {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (el) {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    }
+  }, [children]);
+
+  const textElement = (
+    <Text ref={textRef} truncate maxW={maxW} {...textProps}>
+      {children}
+    </Text>
+  );
+
+  if (!isTruncated) {
+    return textElement;
+  }
+
+  return (
+    <Tooltip.Root openDelay={300} closeDelay={50}>
+      <Tooltip.Trigger asChild>
+        {textElement}
+      </Tooltip.Trigger>
+      <Portal>
+        <Tooltip.Positioner>
+          <Tooltip.Content maxW="400px" zIndex={9999}>{children}</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Portal>
+    </Tooltip.Root>
+  );
+}
 
 type OwnerFilter = "all" | "me" | "others";
 type SortOption = "lastEdited" | "created" | "title" | "author";
@@ -194,36 +237,20 @@ export function Home() {
               {/* Search, Filter, Sort Controls */}
               <HStack mb={4} gap={3}>
                 {/* Search - styled nicely */}
-                <Box position="relative" flex={1}>
-                  <Box
-                    position="absolute"
-                    left={4}
-                    top="50%"
-                    transform="translateY(-50%)"
-                    color="gray.400"
-                    transition="color 0.2s"
-                    css={{ "input:focus ~ &": { color: "blue.500" } }}
-                  >
-                    <LuSearch size={18} />
-                  </Box>
-                  <Input
-                    placeholder="Search notes..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    pl={11}
-                    pr={4}
-                    py={5}
-                    bg="white"
-                    border="none"
-                    borderRadius="xl"
-                    boxShadow="sm"
-                    fontSize="md"
-                    _placeholder={{ color: "gray.400" }}
-                    _hover={{ boxShadow: "md" }}
-                    _focus={{ boxShadow: "0 0 0 2px var(--chakra-colors-blue-400)", outline: "none" }}
-                    transition="all 0.2s"
-                  />
-                </Box>
+                <Input
+                  placeholder="Search notes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  flex={1}
+                  bg="white"
+                  border="1px solid"
+                  borderColor="gray.200"
+                  borderRadius="md"
+                  fontSize="md"
+                  _placeholder={{ color: "gray.400" }}
+                  _hover={{ borderColor: "gray.300" }}
+                  _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px var(--chakra-colors-blue-400)", outline: "none" }}
+                />
 
                 {/* Filter by owner */}
                 <Menu.Root positioning={{ placement: "bottom-start" }}>
@@ -408,21 +435,13 @@ export function Home() {
                       >
                         <HStack justify="space-between">
                           <Box minW={0} flex={1}>
-                            <Tooltip.Root openDelay={300} closeDelay={50}>
-                              <Tooltip.Trigger asChild>
-                                <Text
-                                  fontWeight="medium"
-                                  color={displayTitle === "Untitled" ? "gray.500" : undefined}
-                                  fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
-                                  truncate
-                                >
-                                  {displayTitle}
-                                </Text>
-                              </Tooltip.Trigger>
-                              <Tooltip.Positioner>
-                                <Tooltip.Content maxW="400px">{displayTitle}</Tooltip.Content>
-                              </Tooltip.Positioner>
-                            </Tooltip.Root>
+                            <TruncatedText
+                              fontWeight="medium"
+                              color={displayTitle === "Untitled" ? "gray.500" : undefined}
+                              fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
+                            >
+                              {displayTitle}
+                            </TruncatedText>
                             <HStack gap={1} fontSize="xs" color="gray.500">
                               <Text whiteSpace="nowrap">{formatDate(note.lastVisited)}</Text>
                               {note.ownerName && (
@@ -506,24 +525,16 @@ export function Home() {
                         {/* Content area */}
                         <Box p={4} pb={14}>
                           {/* Title at top */}
-                          <Tooltip.Root openDelay={300} closeDelay={50}>
-                            <Tooltip.Trigger asChild>
-                              <Text
-                                fontWeight="semibold"
-                                fontSize="md"
-                                color={displayTitle === "Untitled" ? "gray.500" : undefined}
-                                fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
-                                truncate
-                                mb={2}
-                                lineHeight="1.4"
-                              >
-                                {displayTitle}
-                              </Text>
-                            </Tooltip.Trigger>
-                            <Tooltip.Positioner>
-                              <Tooltip.Content maxW="300px">{displayTitle}</Tooltip.Content>
-                            </Tooltip.Positioner>
-                          </Tooltip.Root>
+                          <TruncatedText
+                            fontWeight="semibold"
+                            fontSize="md"
+                            color={displayTitle === "Untitled" ? "gray.500" : undefined}
+                            fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
+                            mb={2}
+                            lineHeight="1.4"
+                          >
+                            {displayTitle}
+                          </TruncatedText>
 
                           {/* Content preview - 4 lines */}
                           <Text

@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useCallback } from "react";
-import { Box, HStack, Input, IconButton, Button, Text, Badge } from "@chakra-ui/react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
+import { Box, HStack, Input, IconButton, Button, Text, Tooltip } from "@chakra-ui/react";
+import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
@@ -11,35 +11,99 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuX } from "react-icons/lu";
+import { LuHistory, LuArrowLeft, LuShare2, LuCheck, LuTrash2, LuExternalLink } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
+import type { ViewMode } from "./HistoryPanel";
 import { InlineDiffView } from "./InlineDiffView";
 import { RecentChangesExtension, recentChangesStore } from "./RecentChangesExtension";
 import { useAppStore } from "../store";
+import { Portal } from "@chakra-ui/react";
+
+// Component that shows tooltip only when text is truncated
+function TruncatedTitle({ children, ...textProps }: { children: string } & React.ComponentProps<typeof Text>): ReactNode {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (el) {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    }
+  }, [children]);
+
+  const textElement = (
+    <Text ref={textRef} truncate {...textProps}>
+      {children}
+    </Text>
+  );
+
+  if (!isTruncated) {
+    return textElement;
+  }
+
+  return (
+    <Tooltip.Root openDelay={300} closeDelay={50}>
+      <Tooltip.Trigger asChild>
+        {textElement}
+      </Tooltip.Trigger>
+      <Portal>
+        <Tooltip.Positioner>
+          <Tooltip.Content maxW="500px" zIndex={9999}>{children}</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Portal>
+    </Tooltip.Root>
+  );
+}
 
 interface EditorProps {
   noteId: string;
   partykitHost: string;
   onTitleChange?: (title: string) => void;
+  onBack?: () => void;
+  onShare?: () => void;
+  onDelete?: () => void;
+  shareButtonState?: "default" | "copied";
 }
 
-interface DiffState {
+interface Version {
+  id: string;
+  timestamp: number;
+  title: string;
+  editedBy?: string;
+  editorColor?: string;
+}
+
+interface PreviewState {
+  doc: Y.Doc;
+  version: Version;
+}
+
+interface CompareState {
   oldDoc: Y.Doc;
   newDoc: Y.Doc;
-  oldVersion: { editedBy: string; editorColor: string; timestamp: number };
-  newVersion: { editedBy: string; editorColor: string; timestamp: number };
+  oldVersion: Version;
   versionId: string;
 }
 
-export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: EditorProps) {
+export function CollaborativeEditor({
+  noteId,
+  partykitHost,
+  onTitleChange,
+  onBack,
+  onShare,
+  onDelete,
+  shareButtonState = "default"
+}: EditorProps) {
   const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote, updateNotePreview } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
   const [title, setTitle] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [diffState, setDiffState] = useState<DiffState | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("editing");
+  const [previewState, setPreviewState] = useState<PreviewState | null>(null);
+  const [compareState, setCompareState] = useState<CompareState | null>(null);
   const [isDeleted, setIsDeleted] = useState(false);
 
   const ydocRef = useRef<Y.Doc | null>(null);
@@ -73,6 +137,29 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     titleMapRef.current = ydoc.getMap<string>("meta");
   }
   const titleMap = titleMapRef.current;
+
+  // Handle preview state changes
+  const handlePreview = useCallback((state: PreviewState | null) => {
+    // Clean up old preview doc
+    if (previewState?.doc && previewState.doc !== state?.doc) {
+      previewState.doc.destroy();
+    }
+    setPreviewState(state);
+    setViewMode(state ? "preview" : "editing");
+  }, [previewState]);
+
+  // Handle compare state changes
+  const handleCompare = useCallback((state: CompareState | null) => {
+    // Clean up old compare docs
+    if (compareState?.oldDoc && compareState.oldDoc !== state?.oldDoc) {
+      compareState.oldDoc.destroy();
+    }
+    if (compareState?.newDoc && compareState.newDoc !== state?.newDoc) {
+      compareState.newDoc.destroy();
+    }
+    setCompareState(state);
+    setViewMode(state ? "compare" : "editing");
+  }, [compareState]);
 
   // Register user with server
   const registerUser = useCallback(async () => {
@@ -148,13 +235,11 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     const metaOwnerId = titleMap.get("ownerId") as string | undefined;
     const metaOwnerName = titleMap.get("ownerName") as string | undefined;
 
-    // If we're the owner (locally) and meta doesn't have owner info, set it
     if (localNote?.ownerId === userId && !metaOwnerId) {
       titleMap.set("ownerId", userId);
       titleMap.set("ownerName", userName);
     }
 
-    // If meta has owner info but we don't have it locally, update local storage
     if (metaOwnerId && metaOwnerName && localNote && !localNote.ownerName) {
       updateNoteOwner(noteId, metaOwnerId, metaOwnerName);
     }
@@ -167,14 +252,36 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     }
   }, [isDeleted, noteId, removeRecentNote]);
 
+  // Save version on page leave/close
   useEffect(() => {
+    const handleBeforeUnload = () => {
+      const protocol = partykitHost.includes("localhost") ? "http" : "https";
+      navigator.sendBeacon(
+        `${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`,
+        ""
+      );
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
     return () => {
-      // Clear awareness state first (removes user from collaborators list)
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+
+      const protocol = partykitHost.includes("localhost") ? "http" : "https";
+      fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
+        method: "POST",
+        keepalive: true,
+      }).catch(() => {
+        navigator.sendBeacon(
+          `${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`,
+          ""
+        );
+      });
+
       if (providerRef.current?.awareness) {
         providerRef.current.awareness.setLocalState(null);
       }
 
-      // Destroy provider and doc
       if (providerRef.current) {
         providerRef.current.disconnect();
         providerRef.current.destroy();
@@ -185,39 +292,27 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
         ydocRef.current = null;
       }
 
-      // Reset connection ID for next mount
       connectionIdRef.current = "";
     };
-  }, []);
+  }, [partykitHost, noteId]);
 
   const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
     titleMap.set("title", newTitle);
-    titleMap.set("titleEdited", "true"); // Persist: user manually edited, stop auto-fill
+    titleMap.set("titleEdited", "true");
     registerUser();
   }, [titleMap, registerUser]);
 
   const handleHistoryRestore = useCallback(() => {
-    setDiffState(null);
+    setPreviewState(null);
+    setCompareState(null);
+    setViewMode("editing");
     if (providerRef.current) {
       providerRef.current.disconnect();
       providerRef.current.connect();
     }
   }, []);
-
-  const handleShowDiff = useCallback((diff: DiffState) => {
-    setDiffState(diff);
-    // Keep history panel open so user can navigate between versions
-  }, []);
-
-  const handleCloseDiff = useCallback(() => {
-    // Clean up the old doc
-    if (diffState?.oldDoc) {
-      diffState.oldDoc.destroy();
-    }
-    setDiffState(null);
-  }, [diffState]);
 
   const editor = useEditor(
     {
@@ -246,7 +341,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
           allowBase64: true,
         }),
         Link.configure({
-          openOnClick: true,
+          openOnClick: false,
           autolink: true,
           HTMLAttributes: {
             target: '_blank',
@@ -270,22 +365,18 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
   // Track remote changes via Yjs and highlight them
   useEffect(() => {
     const xmlFragment = ydoc.getXmlFragment("default");
-
     let lastLocalChange = 0;
 
     const observer = (events: Y.YEvent<Y.XmlFragment>[], transaction: Y.Transaction) => {
-      // Skip if this is our own change
       if (transaction.local) {
         lastLocalChange = Date.now();
         return;
       }
 
-      // Skip if we just made a local change (debounce)
       if (Date.now() - lastLocalChange < 100) {
         return;
       }
 
-      // Get remote user info
       const awareness = provider.awareness;
       let remoteUser: { name: string; color: string } | null = null;
 
@@ -301,16 +392,14 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
 
       if (!remoteUser || !editor) return;
 
-      // Find inserted content positions
       for (const event of events) {
         if (event.changes.delta) {
-          let pos = 1; // ProseMirror starts at 1
+          let pos = 1;
 
           for (const delta of event.changes.delta) {
             if (delta.retain) {
               pos += delta.retain;
             } else if (delta.insert) {
-              // Calculate length of inserted content
               let insertLength = 0;
               if (typeof delta.insert === "string") {
                 insertLength = delta.insert.length;
@@ -334,7 +423,6 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
         }
       }
 
-      // Trigger editor update to show decorations
       if (editor && editor.view) {
         setTimeout(() => {
           editor.view.dispatch(editor.state.tr);
@@ -363,7 +451,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     return () => clearInterval(interval);
   }, [editor]);
 
-  // Keyboard shortcut for clear formatting (Ctrl+\)
+  // Keyboard shortcut for clear formatting
   useEffect(() => {
     if (!editor) return;
 
@@ -384,12 +472,10 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
 
     const savePreview = () => {
       const text = editor.getText();
-      // Get first ~200 chars as preview
       const preview = text.slice(0, 200).trim();
       updateNotePreview(noteId, preview);
     };
 
-    // Debounce to avoid too many updates
     let timeout: ReturnType<typeof setTimeout>;
     const handleUpdate = () => {
       clearTimeout(timeout);
@@ -397,7 +483,6 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     };
 
     editor.on('update', handleUpdate);
-    // Save initial preview
     savePreview();
 
     return () => {
@@ -406,24 +491,19 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     };
   }, [editor, noteId, updateNotePreview]);
 
-  // Auto-fill title from first line when user focuses on empty title field
+  // Auto-fill title from first line
   const handleTitleFocus = useCallback(() => {
     if (!editor) return;
 
-    // Check if title was ever manually edited (persisted in Yjs)
     const titleEdited = titleMap.get("titleEdited");
     if (titleEdited) return;
 
     const currentTitle = titleMap.get("title") || "";
-
-    // Only auto-fill if title is empty
     if (currentTitle) return;
 
-    // Get the first line of text content
     const textContent = editor.getText();
     if (!textContent.trim()) return;
 
-    // Extract first line (up to 50 chars)
     const firstLine = textContent.split('\n')[0].trim().slice(0, 50);
     if (firstLine) {
       setTitle(firstLine);
@@ -458,203 +538,341 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     );
   }
 
-  // Show diff view instead of editor
-  if (diffState) {
-    return (
-      <>
-        <Box
-          border="1px solid"
-          borderColor="gray.200"
-          borderRadius="md"
-          bg="white"
-          overflow="hidden"
-        >
-          {/* Diff header */}
-          <HStack px={4} py={3} bg="blue.50" justify="space-between" borderBottom="1px solid" borderColor="gray.200">
-            <HStack>
-              <Badge colorPalette="blue" size="lg">Comparing Changes</Badge>
-              <Text fontSize="sm" color="gray.600">
-                {title || "Untitled"}
-              </Text>
-            </HStack>
-            <HStack>
-              <Button
-                size="sm"
-                colorPalette="blue"
-                onClick={async () => {
-                  const protocol = partykitHost.includes("localhost") ? "http" : "https";
-                  await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/restore/${diffState.versionId}`, {
-                    method: "POST",
-                  });
-                  handleCloseDiff();
-                  handleHistoryRestore();
-                }}
-              >
-                Restore This Version
-              </Button>
-              <IconButton
-                aria-label="Version history"
-                variant={historyOpen ? "solid" : "ghost"}
-                colorPalette={historyOpen ? "blue" : "gray"}
-                size="sm"
-                onClick={() => setHistoryOpen(!historyOpen)}
-              >
-                <LuHistory />
-              </IconButton>
-              <IconButton
-                aria-label="Close diff"
-                variant="ghost"
-                size="sm"
-                onClick={handleCloseDiff}
-              >
-                <LuX />
-              </IconButton>
-            </HStack>
-          </HStack>
+  const selectedVersionId = previewState?.version.id || compareState?.versionId;
 
-          {/* Diff content */}
-          <InlineDiffView
-            oldDoc={diffState.oldDoc}
-            newDoc={diffState.newDoc}
-            oldText=""
-            newText=""
-            oldVersion={diffState.oldVersion}
-            newVersion={diffState.newVersion}
-          />
+  // Get preview title if in preview mode
+  const displayTitle = previewState
+    ? (previewState.doc.getMap("meta").get("title") as string || "Untitled")
+    : title;
+
+  const editorStyles = {
+    "& .ProseMirror": {
+      minHeight: "400px",
+      outline: "none",
+      color: "#1a1a1a",
+      "& p": { margin: "0.5em 0" },
+      "& h1": { fontSize: "1.875rem", fontWeight: "bold", margin: "0.5em 0" },
+      "& h2": { fontSize: "1.5rem", fontWeight: "bold", margin: "0.5em 0" },
+      "& strong, & b": { fontWeight: "bold" },
+      "& em, & i": { fontStyle: "italic" },
+      "& s, & strike": { textDecoration: "line-through" },
+      "& ul": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "disc" },
+      "& ol": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "decimal" },
+      "& li": { margin: "0.25em 0", display: "list-item" },
+      "& li p": { margin: "0" },
+      "& img": {
+        maxWidth: "100%",
+        height: "auto",
+        borderRadius: "4px",
+        margin: "0.5em 0",
+      },
+      "& a": {
+        color: "#3182ce",
+        textDecoration: "underline",
+        cursor: "pointer",
+        "&:hover": {
+          color: "#2c5282",
+        },
+      },
+    },
+    "& .collaboration-cursor__caret": {
+      position: "relative",
+      marginLeft: "-1px",
+      marginRight: "-1px",
+      borderLeft: "1px solid",
+      borderRight: "1px solid",
+      wordBreak: "normal",
+      pointerEvents: "none",
+    },
+    "& .collaboration-cursor__label": {
+      position: "absolute",
+      top: "-1.4em",
+      left: "-1px",
+      fontSize: "12px",
+      fontWeight: "600",
+      lineHeight: "normal",
+      whiteSpace: "nowrap",
+      color: "white",
+      padding: "0.1rem 0.3rem",
+      borderRadius: "3px 3px 3px 0",
+      userSelect: "none",
+    },
+  };
+
+  return (
+    <HStack align="stretch" gap={0} h="100%">
+      {/* Main content area */}
+      <Box
+        flex={1}
+        minW={0}
+        maxW={historyOpen ? "none" : "800px"}
+        mx={historyOpen ? 0 : "auto"}
+        border="1px solid"
+        borderColor="gray.200"
+        borderRadius={historyOpen ? "md 0 0 md" : "md"}
+        bg="white"
+        overflow="hidden"
+        display="flex"
+        flexDirection="column"
+      >
+        {/* Top bar: Back | Avatars | Share | Delete | History */}
+        <HStack
+          px={4}
+          h="49px"
+          bg="gray.50"
+          borderBottom="1px solid"
+          borderColor="gray.200"
+          justify="space-between"
+        >
+          {/* Left: Back button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+          >
+            <LuArrowLeft />
+            <Text display={{ base: "none", sm: "inline" }}>Back</Text>
+          </Button>
+
+          {/* Right: Avatars + Actions */}
+          <HStack gap={3}>
+            {/* Avatars */}
+            <CollaboratorsList
+              provider={provider}
+              currentUser={{ name: userName, color: userColor }}
+              maxDisplay={4}
+            />
+
+            {/* Share */}
+            {onShare && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label={shareButtonState === "copied" ? "Copied!" : "Share"}
+                    variant="ghost"
+                    size="sm"
+                    onClick={onShare}
+                    colorPalette={shareButtonState === "copied" ? "green" : "gray"}
+                  >
+                    {shareButtonState === "copied" ? <LuCheck /> : <LuShare2 />}
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>
+                    {shareButtonState === "copied" ? "Copied!" : "Share link"}
+                  </Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* Delete */}
+            {onDelete && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label="Delete"
+                    variant="ghost"
+                    size="sm"
+                    colorPalette="red"
+                    onClick={onDelete}
+                  >
+                    <LuTrash2 />
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>Delete note</Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* History */}
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <IconButton
+                  aria-label="Version history"
+                  variant={historyOpen ? "solid" : "ghost"}
+                  colorPalette={historyOpen ? "blue" : "gray"}
+                  size="sm"
+                  onClick={() => setHistoryOpen(!historyOpen)}
+                >
+                  <LuHistory />
+                </IconButton>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>Version history</Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
+          </HStack>
+        </HStack>
+
+        {/* Title row */}
+        <Box px={4} py={3} borderBottom="1px solid" borderColor="gray.100">
+          {viewMode === "editing" ? (
+            <Input
+              value={title}
+              onChange={handleTitleChange}
+              onFocus={handleTitleFocus}
+              placeholder="Untitled note..."
+              variant="flushed"
+              fontSize="xl"
+              fontWeight="bold"
+              border="none"
+              maxLength={100}
+              _focus={{ boxShadow: "none" }}
+            />
+          ) : (
+            <TruncatedTitle fontSize="xl" fontWeight="bold" color="gray.700">
+              {displayTitle || "Untitled"}
+            </TruncatedTitle>
+          )}
         </Box>
 
-        {/* History Panel - always show when open */}
+        {/* Toolbar / Status bar */}
+        {viewMode === "editing" ? (
+          <Box bg="gray.50" borderBottom="1px solid" borderColor="gray.200">
+            <Toolbar editor={editor} />
+          </Box>
+        ) : (
+          <HStack
+            px={4}
+            py={2}
+            bg={viewMode === "preview" ? "purple.50" : "blue.50"}
+            borderBottom="1px solid"
+            borderColor="gray.200"
+            justify="space-between"
+          >
+            <Text fontSize="sm" color={viewMode === "preview" ? "purple.700" : "blue.700"} fontWeight="medium">
+              {viewMode === "preview"
+                ? `Viewing version from ${new Date(previewState!.version.timestamp).toLocaleString(undefined, {
+                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+                  })}`
+                : `Comparing with version from ${new Date(compareState!.oldVersion.timestamp).toLocaleString(undefined, {
+                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+                  })}`
+              }
+            </Text>
+            <Button
+              size="xs"
+              variant="outline"
+              colorPalette={viewMode === "preview" ? "purple" : "blue"}
+              onClick={() => {
+                handlePreview(null);
+                handleCompare(null);
+              }}
+            >
+              Back to editing
+            </Button>
+          </HStack>
+        )}
+
+        {/* Content area */}
+        <Box flex={1} overflow="auto">
+          {viewMode === "editing" && (
+            <Box p={4} css={editorStyles}>
+              {editor && (
+                <BubbleMenu
+                  editor={editor}
+                  shouldShow={({ editor }) => editor.isActive('link')}
+                  tippyOptions={{ placement: 'bottom-start' }}
+                >
+                  <HStack
+                    bg="white"
+                    border="1px solid"
+                    borderColor="gray.200"
+                    borderRadius="md"
+                    shadow="md"
+                    p={1}
+                    gap={1}
+                    maxW="400px"
+                  >
+                    <Text fontSize="xs" color="gray.600" px={2} wordBreak="break-all">
+                      {editor.getAttributes('link').href}
+                    </Text>
+                    <IconButton
+                      aria-label="Open link"
+                      size="xs"
+                      variant="ghost"
+                      colorPalette="blue"
+                      onClick={() => {
+                        const href = editor.getAttributes('link').href;
+                        if (href) window.open(href, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <LuExternalLink />
+                    </IconButton>
+                  </HStack>
+                </BubbleMenu>
+              )}
+              <EditorContent editor={editor} />
+            </Box>
+          )}
+
+          {viewMode === "preview" && previewState && (
+            <PreviewContent doc={previewState.doc} styles={editorStyles} />
+          )}
+
+          {viewMode === "compare" && compareState && (
+            <InlineDiffView
+              oldDoc={compareState.oldDoc}
+              newDoc={compareState.newDoc}
+              oldText=""
+              newText=""
+              oldVersion={{
+                editedBy: compareState.oldVersion.editedBy || "Unknown",
+                editorColor: compareState.oldVersion.editorColor || "#888",
+                timestamp: compareState.oldVersion.timestamp,
+              }}
+              newVersion={{
+                editedBy: "Current",
+                editorColor: userColor,
+                timestamp: Date.now(),
+              }}
+            />
+          )}
+        </Box>
+      </Box>
+
+      {/* History Panel - sidebar */}
+      {historyOpen && (
         <HistoryPanel
           noteId={noteId}
           partykitHost={partykitHost}
           isOpen={historyOpen}
-          onClose={() => setHistoryOpen(false)}
           onRestore={handleHistoryRestore}
+          onClose={() => setHistoryOpen(false)}
           currentDoc={ydoc}
-          onShowDiff={handleShowDiff}
-          selectedVersionId={diffState?.versionId}
+          viewMode={viewMode}
+          onPreview={handlePreview}
+          onCompare={handleCompare}
+          selectedVersionId={selectedVersionId}
         />
-      </>
-    );
-  }
+      )}
+    </HStack>
+  );
+}
+
+// Component to render preview of a Y.Doc using TipTap
+function PreviewContent({ doc, styles }: { doc: Y.Doc; styles: Record<string, unknown> }) {
+  const previewEditor = useEditor({
+    extensions: [
+      StarterKit.configure({ history: false }),
+      Collaboration.configure({ document: doc }),
+      TextStyle,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      Image.configure({ inline: false, allowBase64: true }),
+      Link.configure({
+        openOnClick: true,
+        autolink: false,
+        HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
+      }),
+    ],
+    editable: false,
+  }, [doc]);
 
   return (
-    <>
-      <Box
-        border="1px solid"
-        borderColor="gray.200"
-        borderRadius="md"
-        bg="white"
-        overflow="hidden"
-      >
-        {/* Title input */}
-        <HStack px={4} pt={4} justify="space-between">
-          <Input
-            value={title}
-            onChange={handleTitleChange}
-            onFocus={handleTitleFocus}
-            placeholder="Untitled note..."
-            variant="flushed"
-            fontSize="xl"
-            fontWeight="bold"
-            border="none"
-            _focus={{ boxShadow: "none" }}
-            flex={1}
-          />
-          <IconButton
-            aria-label="Version history"
-            variant="ghost"
-            size="sm"
-            onClick={() => setHistoryOpen(true)}
-          >
-            <LuHistory />
-          </IconButton>
-        </HStack>
-
-        {/* Header with toolbar and collaborators */}
-        <HStack
-          justify="space-between"
-          borderBottom="1px solid"
-          borderColor="gray.200"
-          pr={3}
-          flexWrap="wrap"
-        >
-          <Toolbar editor={editor} />
-          <CollaboratorsList
-            provider={provider}
-            currentUser={{ name: userName, color: userColor }}
-          />
-        </HStack>
-
-        {/* Editor content */}
-        <Box p={4} minH="400px" css={{
-          "& .ProseMirror": {
-            minHeight: "400px",
-            outline: "none",
-            color: "#1a1a1a",
-            "& p": { margin: "0.5em 0" },
-            "& h1": { fontSize: "1.875rem", fontWeight: "bold", margin: "0.5em 0" },
-            "& h2": { fontSize: "1.5rem", fontWeight: "bold", margin: "0.5em 0" },
-            "& strong, & b": { fontWeight: "bold" },
-            "& em, & i": { fontStyle: "italic" },
-            "& s, & strike": { textDecoration: "line-through" },
-            "& ul": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "disc" },
-            "& ol": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "decimal" },
-            "& li": { margin: "0.25em 0", display: "list-item" },
-            "& li p": { margin: "0" },
-            "& img": {
-              maxWidth: "100%",
-              height: "auto",
-              borderRadius: "4px",
-              margin: "0.5em 0",
-            },
-            "& a": {
-              color: "#3182ce",
-              textDecoration: "underline",
-              cursor: "pointer",
-              "&:hover": {
-                color: "#2c5282",
-              },
-            },
-          },
-          "& .collaboration-cursor__caret": {
-            position: "relative",
-            marginLeft: "-1px",
-            marginRight: "-1px",
-            borderLeft: "1px solid",
-            borderRight: "1px solid",
-            wordBreak: "normal",
-            pointerEvents: "none",
-          },
-          "& .collaboration-cursor__label": {
-            position: "absolute",
-            top: "-1.4em",
-            left: "-1px",
-            fontSize: "12px",
-            fontWeight: "600",
-            lineHeight: "normal",
-            whiteSpace: "nowrap",
-            color: "white",
-            padding: "0.1rem 0.3rem",
-            borderRadius: "3px 3px 3px 0",
-            userSelect: "none",
-          },
-        }}>
-          <EditorContent editor={editor} />
-        </Box>
-      </Box>
-
-      {/* History Panel */}
-      <HistoryPanel
-        noteId={noteId}
-        partykitHost={partykitHost}
-        isOpen={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        onRestore={handleHistoryRestore}
-        currentDoc={ydoc}
-        onShowDiff={handleShowDiff}
-        selectedVersionId={undefined}
-      />
-    </>
+    <Box p={4} css={styles} bg="gray.50">
+      <EditorContent editor={previewEditor} />
+    </Box>
   );
 }
