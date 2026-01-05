@@ -45,7 +45,12 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<YPartyKitProvider | null>(null);
   const titleMapRef = useRef<Y.Map<string> | null>(null);
-  const connectionIdRef = useRef<string>(Math.random().toString(36).substring(2));
+  const connectionIdRef = useRef<string>("");
+
+  // Generate new connection ID on each mount
+  if (!connectionIdRef.current) {
+    connectionIdRef.current = Math.random().toString(36).substring(2) + Date.now();
+  }
 
   // Initialize once
   if (!ydocRef.current) {
@@ -164,16 +169,24 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
 
   useEffect(() => {
     return () => {
-      setTimeout(() => {
-        if (providerRef.current) {
-          providerRef.current.destroy();
-          providerRef.current = null;
-        }
-        if (ydocRef.current) {
-          ydocRef.current.destroy();
-          ydocRef.current = null;
-        }
-      }, 0);
+      // Clear awareness state first (removes user from collaborators list)
+      if (providerRef.current?.awareness) {
+        providerRef.current.awareness.setLocalState(null);
+      }
+
+      // Destroy provider and doc
+      if (providerRef.current) {
+        providerRef.current.disconnect();
+        providerRef.current.destroy();
+        providerRef.current = null;
+      }
+      if (ydocRef.current) {
+        ydocRef.current.destroy();
+        ydocRef.current = null;
+      }
+
+      // Reset connection ID for next mount
+      connectionIdRef.current = "";
     };
   }, []);
 
@@ -220,6 +233,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
           user: {
             name: userName,
             color: userColor,
+            visibleUserId: userId,
           },
         }),
         TextStyle,

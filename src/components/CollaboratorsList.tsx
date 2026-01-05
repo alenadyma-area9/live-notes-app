@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { HStack, Box, Text, Tooltip } from "@chakra-ui/react";
 import type YPartyKitProvider from "y-partykit/provider";
+import { useAppStore } from "../store";
 
 interface Collaborator {
   name: string;
   color: string;
+  visibleUserId?: string;
 }
 
 interface CollaboratorsListProps {
@@ -13,22 +15,33 @@ interface CollaboratorsListProps {
 }
 
 export function CollaboratorsList({ provider, currentUser }: CollaboratorsListProps) {
-  const [collaborators, setCollaborators] = useState<Map<number, Collaborator>>(new Map());
+  const { userId } = useAppStore();
+  const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(new Map());
 
   useEffect(() => {
     const awareness = provider.awareness;
 
     const updateCollaborators = () => {
       const states = awareness.getStates() as Map<number, { user?: Collaborator }>;
-      const users = new Map<number, Collaborator>();
+      // Deduplicate by visibleUserId (or name+color as fallback)
+      const uniqueUsers = new Map<string, Collaborator>();
 
       states.forEach((state, clientId) => {
         if (state.user && clientId !== awareness.clientID) {
-          users.set(clientId, state.user);
+          // Use visibleUserId if available, otherwise use name+color combo as key
+          const userKey = state.user.visibleUserId || `${state.user.name}-${state.user.color}`;
+
+          // Skip if this is the current user (same visibleUserId)
+          if (state.user.visibleUserId === userId) return;
+
+          // Only add if not already present (first connection wins)
+          if (!uniqueUsers.has(userKey)) {
+            uniqueUsers.set(userKey, state.user);
+          }
         }
       });
 
-      setCollaborators(users);
+      setCollaborators(uniqueUsers);
     };
 
     awareness.on("change", updateCollaborators);
@@ -37,12 +50,12 @@ export function CollaboratorsList({ provider, currentUser }: CollaboratorsListPr
     return () => {
       awareness.off("change", updateCollaborators);
     };
-  }, [provider]);
+  }, [provider, userId]);
 
   const allUsers = [
     { id: "me", ...currentUser, isMe: true },
     ...Array.from(collaborators.entries()).map(([id, user]) => ({
-      id: String(id),
+      id,
       ...user,
       isMe: false,
     })),
@@ -62,7 +75,7 @@ export function CollaboratorsList({ provider, currentUser }: CollaboratorsListPr
               alignItems="center"
               justifyContent="center"
               border="2px solid white"
-              boxShadow="sm"
+              boxShadow={user.isMe ? "0 0 0 3px " + user.color : "sm"}
               cursor="default"
             >
               <Text fontSize="xs" fontWeight="bold" color="white">
