@@ -17,6 +17,8 @@ import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
 import { Header } from "../components/Header";
 
+const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
+
 export function Home() {
   const navigate = useNavigate();
   const { recentNotes, removeRecentNote, addRecentNote, isNoteOwner } = useAppStore();
@@ -45,11 +47,20 @@ export function Home() {
     removeRecentNote(noteId);
   };
 
-  const handleDeleteNote = (noteId: string, e: React.MouseEvent) => {
+  const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm("Are you sure you want to delete this note? This cannot be undone.")) {
-      removeRecentNote(noteId);
-      showToast("Note deleted", "info");
+      try {
+        const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
+        await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${noteId}/delete`, {
+          method: "POST",
+        });
+        removeRecentNote(noteId);
+        showToast("Note deleted", "info");
+      } catch (err) {
+        console.error("Failed to delete note:", err);
+        showToast("Failed to delete note", "info");
+      }
     }
   };
 

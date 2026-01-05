@@ -29,12 +29,13 @@ interface DiffState {
 }
 
 export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: EditorProps) {
-  const { userName, userColor } = useAppStore();
+  const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
   const [title, setTitle] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [diffState, setDiffState] = useState<DiffState | null>(null);
+  const [isDeleted, setIsDeleted] = useState(false);
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<YPartyKitProvider | null>(null);
@@ -111,19 +112,50 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
   }, [userName, userColor, isConnected, registerUser]);
 
   useEffect(() => {
-    const updateTitle = () => {
+    const updateMeta = () => {
       const newTitle = titleMap.get("title") || "";
       setTitle(newTitle);
       onTitleChange?.(newTitle);
+
+      // Check if note is deleted
+      const deleted = (titleMap.get("deleted") as unknown) === true;
+      setIsDeleted(deleted);
     };
 
-    titleMap.observe(updateTitle);
-    updateTitle();
+    titleMap.observe(updateMeta);
+    updateMeta();
 
     return () => {
-      titleMap.unobserve(updateTitle);
+      titleMap.unobserve(updateMeta);
     };
   }, [titleMap, onTitleChange]);
+
+  // Sync owner info between Yjs meta and local storage
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const localNote = recentNotes.find(n => n.id === noteId);
+    const metaOwnerId = titleMap.get("ownerId") as string | undefined;
+    const metaOwnerName = titleMap.get("ownerName") as string | undefined;
+
+    // If we're the owner (locally) and meta doesn't have owner info, set it
+    if (localNote?.ownerId === userId && !metaOwnerId) {
+      titleMap.set("ownerId", userId);
+      titleMap.set("ownerName", userName);
+    }
+
+    // If meta has owner info but we don't have it locally, update local storage
+    if (metaOwnerId && metaOwnerName && localNote && !localNote.ownerName) {
+      updateNoteOwner(noteId, metaOwnerId, metaOwnerName);
+    }
+  }, [isConnected, noteId, userId, userName, recentNotes, titleMap, updateNoteOwner]);
+
+  // Auto-remove deleted note from list immediately when detected
+  useEffect(() => {
+    if (isDeleted) {
+      removeRecentNote(noteId);
+    }
+  }, [isDeleted, noteId, removeRecentNote]);
 
   useEffect(() => {
     return () => {
@@ -298,6 +330,24 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     return (
       <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" p={8} textAlign="center">
         Connecting...
+      </Box>
+    );
+  }
+
+  if (isDeleted) {
+    return (
+      <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" p={8} textAlign="center">
+        <Text fontSize="xl" color="gray.500" mb={2}>📭</Text>
+        <Text fontSize="lg" fontWeight="medium" color="gray.600">This note has been deleted</Text>
+        <Text fontSize="sm" color="gray.400" mt={1}>The owner has removed this note.</Text>
+        <Text fontSize="sm" color="gray.400" mb={4}>It has been removed from your list.</Text>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.location.href = "/"}
+        >
+          Go back to notes
+        </Button>
       </Box>
     );
   }

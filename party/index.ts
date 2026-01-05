@@ -118,6 +118,42 @@ export default class YjsServer implements Party.Server {
       return Response.json({ success: true }, { headers: corsHeaders });
     }
 
+    // POST /delete - mark note as deleted
+    if (req.method === "POST" && url.pathname.endsWith("/delete")) {
+      try {
+        const ydoc = await unstable_getYDoc(this.room);
+        if (ydoc) {
+          const meta = ydoc.getMap("meta");
+          meta.set("deleted", true);
+
+          // Clear content but keep title for reference
+          const content = ydoc.getXmlFragment("default");
+          if (content.length > 0) {
+            content.delete(0, content.length);
+          }
+        }
+
+        // Clear versions
+        await this.room.storage.put("versions", []);
+
+        return Response.json({ success: true }, { headers: corsHeaders });
+      } catch (err) {
+        console.error("Delete error:", err);
+        return Response.json({ error: "Failed to delete" }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    // GET /status - check if note is deleted
+    if (req.method === "GET" && url.pathname.endsWith("/status")) {
+      const ydoc = await unstable_getYDoc(this.room);
+      let deleted = false;
+      if (ydoc) {
+        const meta = ydoc.getMap("meta");
+        deleted = meta.get("deleted") === true;
+      }
+      return Response.json({ deleted }, { headers: corsHeaders });
+    }
+
     return Response.json({ error: "Not found" }, { status: 404, headers: corsHeaders });
   }
 

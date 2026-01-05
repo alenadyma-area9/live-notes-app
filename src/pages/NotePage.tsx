@@ -34,10 +34,18 @@ export function NotePage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDelete = () => {
-    if (noteId && confirm("Are you sure you want to delete this note?")) {
-      removeRecentNote(noteId);
-      navigate("/");
+  const handleDelete = async () => {
+    if (noteId && confirm("Are you sure you want to delete this note? This cannot be undone.")) {
+      try {
+        const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
+        await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${noteId}/delete`, {
+          method: "POST",
+        });
+        removeRecentNote(noteId);
+        navigate("/");
+      } catch (err) {
+        console.error("Failed to delete note:", err);
+      }
     }
   };
 

@@ -16,6 +16,7 @@ interface AppState {
 interface AppActions {
   setUserName: (name: string) => void;
   addRecentNote: (id: string, title: string, isCreator?: boolean) => void;
+  updateNoteOwner: (id: string, ownerId: string, ownerName: string) => void;
   removeRecentNote: (id: string) => void;
   isNoteOwner: (id: string) => boolean;
 }
@@ -43,6 +44,14 @@ export const useAppStore = create<AppState & AppActions>()(
         const ownerName = existing?.ownerName || (isCreator ? userName : undefined);
 
         const updated = [{ id, title, lastVisited: Date.now(), ownerId, ownerName }, ...filtered].slice(0, 10);
+        set({ recentNotes: updated });
+      },
+
+      updateNoteOwner: (id: string, ownerId: string, ownerName: string) => {
+        const { recentNotes } = get();
+        const updated = recentNotes.map((n) =>
+          n.id === id ? { ...n, ownerId, ownerName } : n
+        );
         set({ recentNotes: updated });
       },
 
