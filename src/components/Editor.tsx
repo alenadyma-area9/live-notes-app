@@ -4,6 +4,11 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
+import TextStyle from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import Highlight from "@tiptap/extension-highlight";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
 import { LuHistory, LuX } from "react-icons/lu";
@@ -29,7 +34,7 @@ interface DiffState {
 }
 
 export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: EditorProps) {
-  const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote } = useAppStore();
+  const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote, updateNotePreview } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
   const [title, setTitle] = useState("");
@@ -176,6 +181,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
     const newTitle = e.target.value;
     setTitle(newTitle);
     titleMap.set("title", newTitle);
+    titleMap.set("titleEdited", "true"); // Persist: user manually edited, stop auto-fill
     registerUser();
   }, [titleMap, registerUser]);
 
@@ -214,6 +220,23 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
           user: {
             name: userName,
             color: userColor,
+          },
+        }),
+        TextStyle,
+        Color,
+        Highlight.configure({
+          multicolor: true,
+        }),
+        Image.configure({
+          inline: false,
+          allowBase64: true,
+        }),
+        Link.configure({
+          openOnClick: true,
+          autolink: true,
+          HTMLAttributes: {
+            target: '_blank',
+            rel: 'noopener noreferrer',
           },
         }),
         RecentChangesExtension,
@@ -325,6 +348,75 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
 
     return () => clearInterval(interval);
   }, [editor]);
+
+  // Keyboard shortcut for clear formatting (Ctrl+\)
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === '\\') {
+        event.preventDefault();
+        editor.chain().focus().unsetAllMarks().clearNodes().run();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [editor]);
+
+  // Save content preview (debounced)
+  useEffect(() => {
+    if (!editor) return;
+
+    const savePreview = () => {
+      const text = editor.getText();
+      // Get first ~200 chars as preview
+      const preview = text.slice(0, 200).trim();
+      updateNotePreview(noteId, preview);
+    };
+
+    // Debounce to avoid too many updates
+    let timeout: NodeJS.Timeout;
+    const handleUpdate = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(savePreview, 1000);
+    };
+
+    editor.on('update', handleUpdate);
+    // Save initial preview
+    savePreview();
+
+    return () => {
+      clearTimeout(timeout);
+      editor.off('update', handleUpdate);
+    };
+  }, [editor, noteId, updateNotePreview]);
+
+  // Auto-fill title from first line when user focuses on empty title field
+  const handleTitleFocus = useCallback(() => {
+    if (!editor) return;
+
+    // Check if title was ever manually edited (persisted in Yjs)
+    const titleEdited = titleMap.get("titleEdited");
+    if (titleEdited) return;
+
+    const currentTitle = titleMap.get("title") || "";
+
+    // Only auto-fill if title is empty
+    if (currentTitle) return;
+
+    // Get the first line of text content
+    const textContent = editor.getText();
+    if (!textContent.trim()) return;
+
+    // Extract first line (up to 50 chars)
+    const firstLine = textContent.split('\n')[0].trim().slice(0, 50);
+    if (firstLine) {
+      setTitle(firstLine);
+      titleMap.set("title", firstLine);
+      titleMap.set("titleEdited", "true");
+    }
+  }, [editor, titleMap]);
 
   if (!isConnected || !isUserRegistered) {
     return (
@@ -446,6 +538,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
           <Input
             value={title}
             onChange={handleTitleChange}
+            onFocus={handleTitleFocus}
             placeholder="Untitled note..."
             variant="flushed"
             fontSize="xl"
@@ -484,6 +577,7 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
           "& .ProseMirror": {
             minHeight: "400px",
             outline: "none",
+            color: "#1a1a1a",
             "& p": { margin: "0.5em 0" },
             "& h1": { fontSize: "1.875rem", fontWeight: "bold", margin: "0.5em 0" },
             "& h2": { fontSize: "1.5rem", fontWeight: "bold", margin: "0.5em 0" },
@@ -494,6 +588,20 @@ export function CollaborativeEditor({ noteId, partykitHost, onTitleChange }: Edi
             "& ol": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "decimal" },
             "& li": { margin: "0.25em 0", display: "list-item" },
             "& li p": { margin: "0" },
+            "& img": {
+              maxWidth: "100%",
+              height: "auto",
+              borderRadius: "4px",
+              margin: "0.5em 0",
+            },
+            "& a": {
+              color: "#3182ce",
+              textDecoration: "underline",
+              cursor: "pointer",
+              "&:hover": {
+                color: "#2c5282",
+              },
+            },
           },
           "& .collaboration-cursor__caret": {
             position: "relative",

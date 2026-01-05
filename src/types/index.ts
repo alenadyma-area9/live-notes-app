@@ -8,6 +8,8 @@ export interface RecentNote {
   id: string;
   title: string;
   lastVisited: number;
+  createdAt?: number;
   ownerId?: string;
   ownerName?: string;
+  preview?: string;
 }

@@ -6,6 +6,9 @@ import {
   HStack,
   Button,
   Text,
+  IconButton,
+  useBreakpointValue,
+  Tooltip,
 } from "@chakra-ui/react";
 import { LuArrowLeft, LuCopy, LuCheck, LuTrash2 } from "react-icons/lu";
 import { CollaborativeEditor } from "../components/Editor";
@@ -19,6 +22,7 @@ export function NotePage() {
   const navigate = useNavigate();
   const { addRecentNote, removeRecentNote, isNoteOwner } = useAppStore();
   const [copied, setCopied] = useState(false);
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   const isOwner = noteId ? isNoteOwner(noteId) : false;
 
@@ -66,34 +70,72 @@ export function NotePage() {
             onClick={() => navigate("/")}
           >
             <LuArrowLeft />
-            Back to notes
+            <Text display={{ base: "inline", sm: "none" }}>Back</Text>
+            <Text display={{ base: "none", sm: "inline" }}>Back to notes</Text>
           </Button>
-          <HStack gap={3}>
-            <HStack gap={1}>
-              <Text fontSize="xs" color="gray.500">ID:</Text>
-              <Text fontSize="xs" color="gray.400" fontFamily="mono">
-                {noteId}
-              </Text>
-            </HStack>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyLink}
-              colorPalette={copied ? "green" : "gray"}
-            >
-              {copied ? <LuCheck /> : <LuCopy />}
-              {copied ? "Copied!" : "Share Link"}
-            </Button>
-            {isOwner && (
+          <HStack gap={2}>
+            {/* Share button */}
+            {isMobile ? (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label={copied ? "Copied!" : "Share Link"}
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyLink}
+                    colorPalette={copied ? "green" : "gray"}
+                  >
+                    {copied ? <LuCheck /> : <LuCopy />}
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>
+                    {copied ? "Copied!" : "Share Link"}
+                  </Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            ) : (
               <Button
                 variant="outline"
                 size="sm"
-                colorPalette="red"
-                onClick={handleDelete}
+                onClick={handleCopyLink}
+                colorPalette={copied ? "green" : "gray"}
               >
-                <LuTrash2 />
-                Delete
+                {copied ? <LuCheck /> : <LuCopy />}
+                {copied ? "Copied!" : "Share Link"}
               </Button>
+            )}
+
+            {/* Delete button - owner only */}
+            {isOwner && (
+              isMobile ? (
+                <Tooltip.Root openDelay={100} closeDelay={50}>
+                  <Tooltip.Trigger asChild>
+                    <IconButton
+                      aria-label="Delete"
+                      variant="outline"
+                      size="sm"
+                      colorPalette="red"
+                      onClick={handleDelete}
+                    >
+                      <LuTrash2 />
+                    </IconButton>
+                  </Tooltip.Trigger>
+                  <Tooltip.Positioner>
+                    <Tooltip.Content>Delete</Tooltip.Content>
+                  </Tooltip.Positioner>
+                </Tooltip.Root>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  colorPalette="red"
+                  onClick={handleDelete}
+                >
+                  <LuTrash2 />
+                  Delete
+                </Button>
+              )
             )}
           </HStack>
         </HStack>
