@@ -11,13 +11,13 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuArrowLeft, LuShare2, LuCheck, LuTrash2, LuExternalLink } from "react-icons/lu";
+import { LuHistory, LuArrowLeft, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
 import type { ViewMode } from "./HistoryPanel";
 import { InlineDiffView } from "./InlineDiffView";
-import { RecentChangesExtension, recentChangesStore } from "./RecentChangesExtension";
+
 import { useAppStore } from "../store";
 import { Portal } from "@chakra-ui/react";
 
@@ -64,6 +64,8 @@ interface EditorProps {
   onBack?: () => void;
   onShare?: () => void;
   onDelete?: () => void;
+  onDuplicate?: (newNoteId: string, newTitle: string) => void;
+  autoDuplicate?: boolean;
   shareButtonState?: "default" | "copied";
 }
 
@@ -94,12 +96,28 @@ export function CollaborativeEditor({
   onBack,
   onShare,
   onDelete,
+  onDuplicate,
+  autoDuplicate,
   shareButtonState = "default"
 }: EditorProps) {
   const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote, updateNotePreview } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
-  const [title, setTitle] = useState("");
+
+  // Check for pending duplicate title in sessionStorage
+  const getInitialTitle = () => {
+    const duplicateData = sessionStorage.getItem(`duplicate:${noteId}`);
+    if (duplicateData) {
+      try {
+        const { title } = JSON.parse(duplicateData);
+        return title || "";
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  };
+  const [title, setTitle] = useState(getInitialTitle);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("editing");
   const [previewState, setPreviewState] = useState<PreviewState | null>(null);
@@ -207,6 +225,48 @@ export function CollaborativeEditor({
       registerUser();
     }
   }, [userName, userColor, isConnected, registerUser]);
+
+  // Check for duplicate state in sessionStorage and apply it
+  useEffect(() => {
+    if (!isConnected || !ydocRef.current) return;
+
+    const duplicateKey = `duplicate:${noteId}`;
+    const duplicateData = sessionStorage.getItem(duplicateKey);
+
+    if (duplicateData) {
+      console.log("[Duplicate] Found pending duplicate data for", noteId);
+      sessionStorage.removeItem(duplicateKey);
+
+      try {
+        const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
+
+        // Decode base64 to Uint8Array
+        const binary = atob(stateBase64);
+        const state = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          state[i] = binary.charCodeAt(i);
+        }
+
+        console.log("[Duplicate] Applying state:", state.byteLength, "bytes");
+
+        // Apply the state to the Y.Doc (this includes old title)
+        Y.applyUpdate(ydocRef.current, state);
+
+        // Set the NEW title in Y.Doc meta (overwrites old title)
+        const meta = ydocRef.current.getMap("meta");
+        meta.set("title", newTitle);
+        meta.set("titleEdited", "true");
+
+        // Set React state directly AND after a tick to beat any observer race
+        setTitle(newTitle);
+        setTimeout(() => setTitle(newTitle), 0);
+
+        console.log("[Duplicate] State and title applied successfully:", newTitle);
+      } catch (err) {
+        console.error("[Duplicate] Failed to apply duplicate state:", err);
+      }
+    }
+  }, [isConnected, noteId]);
 
   useEffect(() => {
     const updateMeta = () => {
@@ -348,7 +408,6 @@ export function CollaborativeEditor({
             rel: 'noopener noreferrer',
           },
         }),
-        RecentChangesExtension,
       ],
       editorProps: {
         attributes: {
@@ -362,94 +421,7 @@ export function CollaborativeEditor({
     [provider, userName, userColor, registerUser]
   );
 
-  // Track remote changes via Yjs and highlight them
-  useEffect(() => {
-    const xmlFragment = ydoc.getXmlFragment("default");
-    let lastLocalChange = 0;
 
-    const observer = (events: Y.YEvent<Y.XmlFragment>[], transaction: Y.Transaction) => {
-      if (transaction.local) {
-        lastLocalChange = Date.now();
-        return;
-      }
-
-      if (Date.now() - lastLocalChange < 100) {
-        return;
-      }
-
-      const awareness = provider.awareness;
-      let remoteUser: { name: string; color: string } | null = null;
-
-      for (const [clientId, state] of awareness.getStates().entries()) {
-        if (clientId !== awareness.clientID) {
-          const s = state as { user?: { name: string; color: string } };
-          if (s.user) {
-            remoteUser = s.user;
-            break;
-          }
-        }
-      }
-
-      if (!remoteUser || !editor) return;
-
-      for (const event of events) {
-        if (event.changes.delta) {
-          let pos = 1;
-
-          for (const delta of event.changes.delta) {
-            if (delta.retain) {
-              pos += delta.retain;
-            } else if (delta.insert) {
-              let insertLength = 0;
-              if (typeof delta.insert === "string") {
-                insertLength = delta.insert.length;
-              } else if (Array.isArray(delta.insert)) {
-                insertLength = delta.insert.length;
-              } else {
-                insertLength = 1;
-              }
-
-              if (insertLength > 0) {
-                recentChangesStore.addChange(
-                  pos,
-                  pos + insertLength,
-                  remoteUser.color,
-                  remoteUser.name
-                );
-              }
-              pos += insertLength;
-            }
-          }
-        }
-      }
-
-      if (editor && editor.view) {
-        setTimeout(() => {
-          editor.view.dispatch(editor.state.tr);
-        }, 10);
-      }
-    };
-
-    xmlFragment.observeDeep(observer);
-
-    return () => {
-      xmlFragment.unobserveDeep(observer);
-      recentChangesStore.clear();
-    };
-  }, [ydoc, provider, editor]);
-
-  // Refresh decorations periodically for fading effect
-  useEffect(() => {
-    if (!editor) return;
-
-    const interval = setInterval(() => {
-      if (recentChangesStore.changes.length > 0) {
-        editor.view.dispatch(editor.state.tr);
-      }
-    }, 200);
-
-    return () => clearInterval(interval);
-  }, [editor]);
 
   // Keyboard shortcut for clear formatting
   useEffect(() => {
@@ -490,6 +462,45 @@ export function CollaborativeEditor({
       editor.off('update', handleUpdate);
     };
   }, [editor, noteId, updateNotePreview]);
+
+  // Auto-duplicate when requested from home page
+  useEffect(() => {
+    if (!autoDuplicate || !isConnected || !isUserRegistered || !ydocRef.current || !onDuplicate) return;
+
+    console.log("[AutoDuplicate] Starting auto-duplicate...");
+
+    // Small delay to ensure doc is synced
+    const timeout = setTimeout(() => {
+      console.log("[AutoDuplicate] Step 1: Encoding state...");
+      const state = Y.encodeStateAsUpdate(ydocRef.current!);
+      console.log("[AutoDuplicate] Step 1: State size:", state.byteLength, "bytes");
+
+      let binary = "";
+      for (let i = 0; i < state.byteLength; i++) {
+        binary += String.fromCharCode(state[i]);
+      }
+      const stateBase64 = btoa(binary);
+
+      const newNoteId = Math.random().toString(36).substring(2, 10);
+      const currentTitle = titleMap.get("title") as string || "";
+      const newTitle = currentTitle ? `(copy) ${currentTitle}` : "(copy) Untitled";
+
+      console.log("[AutoDuplicate] Step 2: New note ID:", newNoteId);
+      console.log("[AutoDuplicate] Step 2: New title:", newTitle);
+
+      // Store in sessionStorage for the new note to pick up
+      sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+        state: stateBase64,
+        title: newTitle
+      }));
+      console.log("[AutoDuplicate] Step 3: Stored in sessionStorage");
+
+      console.log("[AutoDuplicate] Step 4: Navigating to new note");
+      onDuplicate(newNoteId, newTitle);
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [autoDuplicate, isConnected, isUserRegistered, onDuplicate, titleMap]);
 
   // Auto-fill title from first line
   const handleTitleFocus = useCallback(() => {
@@ -661,6 +672,77 @@ export function CollaborativeEditor({
                   <Tooltip.Content>
                     {shareButtonState === "copied" ? "Copied!" : "Share link"}
                   </Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* Duplicate */}
+            {onDuplicate && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label="Duplicate"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      // Step 1: Confirmation
+                      const newTitlePreview = title ? `(copy) ${title}` : "(copy) Untitled";
+                      const confirmed = confirm(
+                        `Duplicate this note?\n\n` +
+                        `New title: "${newTitlePreview}"\n\n` +
+                        `Will copy:\n` +
+                        `• Title\n` +
+                        `• All content\n\n` +
+                        `Will NOT copy:\n` +
+                        `• Version history\n` +
+                        `• Ownership (you'll be the owner)`
+                      );
+                      if (!confirmed) return;
+
+                      console.log("[Duplicate] Step 1: Confirmed by user");
+
+                      // Step 2: Check Y.Doc
+                      if (!ydocRef.current) {
+                        console.error("[Duplicate] Step 2 FAILED: No Y.Doc available");
+                        return;
+                      }
+                      console.log("[Duplicate] Step 2: Y.Doc available");
+
+                      // Step 3: Encode state
+                      console.log("[Duplicate] Step 3: Encoding state...");
+                      const state = Y.encodeStateAsUpdate(ydocRef.current);
+                      console.log("[Duplicate] Step 3: State size:", state.byteLength, "bytes");
+
+                      let binary = "";
+                      for (let i = 0; i < state.byteLength; i++) {
+                        binary += String.fromCharCode(state[i]);
+                      }
+                      const stateBase64 = btoa(binary);
+                      console.log("[Duplicate] Step 3: Base64 length:", stateBase64.length);
+
+                      // Step 4: Generate new ID and store state in sessionStorage
+                      const newNoteId = Math.random().toString(36).substring(2, 10);
+                      const newTitle = title ? `(copy) ${title}` : "(copy) Untitled";
+                      console.log("[Duplicate] Step 4: New note ID:", newNoteId);
+                      console.log("[Duplicate] Step 4: New title:", newTitle);
+
+                      // Store in sessionStorage for the new note to pick up
+                      sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+                        state: stateBase64,
+                        title: newTitle
+                      }));
+                      console.log("[Duplicate] Step 5: Stored in sessionStorage");
+
+                      // Navigate to new note with title
+                      console.log("[Duplicate] Step 6: Navigating to new note");
+                      onDuplicate(newNoteId, newTitle);
+                    }}
+                  >
+                    <LuCopy />
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>Duplicate note</Tooltip.Content>
                 </Tooltip.Positioner>
               </Tooltip.Root>
             )}

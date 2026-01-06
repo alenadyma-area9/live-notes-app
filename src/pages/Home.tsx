@@ -14,7 +14,7 @@ import {
   Input,
   Tooltip,
 } from "@chakra-ui/react";
-import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid } from "react-icons/lu";
+import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid, LuCopy } from "react-icons/lu";
 import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
 import { Header } from "../components/Header";
@@ -114,6 +114,29 @@ export function Home() {
         console.error("Failed to delete note:", err);
         showToast("Failed to delete note", "info");
       }
+    }
+  };
+
+  const handleDuplicate = (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const note = recentNotes.find(n => n.id === noteId);
+    const noteTitle = note?.title || "Untitled";
+    const newTitle = `(copy) ${noteTitle}`;
+
+    const confirmed = confirm(
+      `Duplicate "${noteTitle}"?\n\n` +
+      `New title: "${newTitle}"\n\n` +
+      `Will copy:\n` +
+      `• Title\n` +
+      `• All content\n\n` +
+      `Will NOT copy:\n` +
+      `• Version history\n` +
+      `• Ownership (you'll be the owner)`
+    );
+
+    if (confirmed) {
+      // Navigate to note with duplicate action - the editor will handle it
+      navigate(`/note/${noteId}?action=duplicate`);
     }
   };
 
@@ -475,6 +498,13 @@ export function Home() {
                                     Share
                                   </Menu.Item>
                                   <Menu.Item
+                                    value="duplicate"
+                                    onClick={(e) => handleDuplicate(note.id, e as unknown as React.MouseEvent)}
+                                  >
+                                    <LuCopy />
+                                    Duplicate
+                                  </Menu.Item>
+                                  <Menu.Item
                                     value="remove"
                                     onClick={(e) => handleRemoveFromList(note.id, e as unknown as React.MouseEvent)}
                                   >
@@ -596,6 +626,13 @@ export function Home() {
                                     >
                                       <LuShare2 />
                                       Share
+                                    </Menu.Item>
+                                    <Menu.Item
+                                      value="duplicate"
+                                      onClick={(e) => handleDuplicate(note.id, e as unknown as React.MouseEvent)}
+                                    >
+                                      <LuCopy />
+                                      Duplicate
                                     </Menu.Item>
                                     <Menu.Item
                                       value="remove"

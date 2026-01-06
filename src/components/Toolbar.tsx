@@ -54,12 +54,12 @@ function TooltipButton({
 
 // Text colors - readable colors
 const TEXT_COLORS = [
-  { name: "Default", color: null },
-  { name: "Red", color: "#DC2626" },
-  { name: "Orange", color: "#EA580C" },
-  { name: "Green", color: "#16A34A" },
-  { name: "Blue", color: "#1a1a1a" },
-  { name: "Purple", color: "#9333EA" },
+  { name: "Default", color: null, displayColor: "#1a1a1a" },
+  { name: "Red", color: "#DC2626", displayColor: "#DC2626" },
+  { name: "Orange", color: "#EA580C", displayColor: "#EA580C" },
+  { name: "Green", color: "#16A34A", displayColor: "#16A34A" },
+  { name: "Blue", color: "#2563EB", displayColor: "#2563EB" },
+  { name: "Purple", color: "#9333EA", displayColor: "#9333EA" },
 ];
 
 // Highlight colors - neon marker colors (slightly muted for readability)
@@ -112,13 +112,13 @@ export function Toolbar({ editor }: ToolbarProps) {
   };
 
   const getCurrentTextColor = () => {
-    if (!isFocused) return null;
     for (const c of TEXT_COLORS) {
       if (c.color && editor.isActive("textStyle", { color: c.color })) {
-        return c.color;
+        return c.displayColor;
       }
     }
-    return null;
+    // Default is black
+    return "#1a1a1a";
   };
 
   const getCurrentHighlight = () => {
@@ -334,7 +334,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                           w={4}
                           h={4}
                           borderRadius="sm"
-                          bg={c.color || "gray.400"}
+                          bg={c.displayColor}
                           border="1px solid"
                           borderColor="gray.300"
                         />
@@ -606,7 +606,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                         w={4}
                         h={4}
                         borderRadius="sm"
-                        bg={c.color || "gray.400"}
+                        bg={c.displayColor}
                         border="1px solid"
                         borderColor="gray.300"
                       />

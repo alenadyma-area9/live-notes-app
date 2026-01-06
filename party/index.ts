@@ -8,8 +8,6 @@ interface Version {
   title: string;
   editedBy: string;
   editorColor: string;
-  windowStart?: number;  // Start of editing window
-  windowEnd?: number;    // End of editing window
 }
 
 interface UserInfo {
@@ -42,10 +40,24 @@ export default class YjsServer implements Party.Server {
   constructor(readonly room: Party.Room) {}
 
   async onConnect(conn: Party.Connection) {
+    // Check for initial title from duplication
+    const initialTitle = await this.room.storage.get<string>("initialTitle");
+
     return onConnect(conn, this.room, {
       persist: { mode: "snapshot" },
       callback: {
         handler: async (ydoc) => {
+          // Apply initial title if this is a duplicated note
+          if (initialTitle) {
+            const meta = ydoc.getMap("meta");
+            if (!meta.get("title")) {
+              meta.set("title", initialTitle);
+              meta.set("titleEdited", "true");
+            }
+            // Clear the initial title so it's not applied again
+            await this.room.storage.delete("initialTitle");
+          }
+
           await this.maybeSaveVersion(ydoc);
         },
       },
@@ -99,25 +111,31 @@ export default class YjsServer implements Party.Server {
       return Response.json({ id: versionId, state: stateBase64 }, { headers: corsHeaders });
     }
 
-    // POST /restore/:id
+    // POST /restore/:id - returns the version state for client to apply
     if (req.method === "POST" && url.pathname.includes("/restore/")) {
-      const versionId = url.pathname.split("/restore/")[1];
-      const stateBase64 = await this.room.storage.get<string>(`version:${versionId}`);
+      try {
+        const versionId = url.pathname.split("/restore/")[1];
+        const stateBase64 = await this.room.storage.get<string>(`version:${versionId}`);
 
-      if (!stateBase64) {
-        return Response.json({ error: "Version not found" }, { status: 404, headers: corsHeaders });
-      }
+        if (!stateBase64) {
+          return Response.json({ error: "Version not found" }, { status: 404, headers: corsHeaders });
+        }
 
-      const ydoc = await unstable_getYDoc(this.room);
-      if (ydoc) {
-        const state = base64ToUint8Array(stateBase64);
-        Y.applyUpdate(ydoc, state);
+        // Save current state before restore
+        const ydoc = await unstable_getYDoc(this.room);
+        if (ydoc) {
+          await this.forceSaveVersion(ydoc);
+        }
 
+        // Clear the hash so changes are tracked fresh
         await this.room.storage.delete("lastStateHash");
-        await this.maybeSaveVersion(ydoc);
-      }
 
-      return Response.json({ success: true }, { headers: corsHeaders });
+        // Return the version state for client to apply
+        return Response.json({ success: true, state: stateBase64 }, { headers: corsHeaders });
+      } catch (err) {
+        console.error("Restore error:", err);
+        return Response.json({ error: "Failed to restore" }, { status: 500, headers: corsHeaders });
+      }
     }
 
     // POST /delete - mark note as deleted
@@ -147,22 +165,84 @@ export default class YjsServer implements Party.Server {
 
     // GET /status - check if note is deleted
     if (req.method === "GET" && url.pathname.endsWith("/status")) {
-      const ydoc = await unstable_getYDoc(this.room);
-      let deleted = false;
-      if (ydoc) {
-        const meta = ydoc.getMap("meta");
-        deleted = meta.get("deleted") === true;
+      try {
+        const ydoc = await unstable_getYDoc(this.room);
+        let deleted = false;
+        if (ydoc) {
+          const meta = ydoc.getMap("meta");
+          deleted = meta.get("deleted") === true;
+        }
+        return Response.json({ deleted }, { headers: corsHeaders });
+      } catch (err) {
+        console.error("Status error:", err);
+        return Response.json({ deleted: false }, { headers: corsHeaders });
       }
-      return Response.json({ deleted }, { headers: corsHeaders });
     }
 
     // POST /save-version - force save version (on user leave)
     if (req.method === "POST" && url.pathname.endsWith("/save-version")) {
-      const ydoc = await unstable_getYDoc(this.room);
-      if (ydoc) {
-        await this.forceSaveVersion(ydoc);
+      // This is best-effort - don't fail if doc is unavailable
+      try {
+        const ydoc = await unstable_getYDoc(this.room);
+        if (ydoc) {
+          await this.forceSaveVersion(ydoc);
+        }
+      } catch (err) {
+        // Silently ignore - doc may be unavailable after disconnect
+        console.log("Save version skipped (doc unavailable):", err instanceof Error ? err.message : err);
       }
       return Response.json({ success: true }, { headers: corsHeaders });
+    }
+
+    // GET /state - get current document state (for duplication)
+    if (req.method === "GET" && url.pathname.endsWith("/state")) {
+      try {
+        // Try to get the Y.Doc - this creates/loads it if needed
+        const ydoc = await unstable_getYDoc(this.room);
+        if (!ydoc) {
+          return Response.json({ error: "Document not found" }, { status: 404, headers: corsHeaders });
+        }
+
+        const state = Y.encodeStateAsUpdate(ydoc);
+        const stateBase64 = uint8ArrayToBase64(state);
+        const meta = ydoc.getMap("meta");
+        const title = (meta.get("title") as string) || "";
+
+        return Response.json({ state: stateBase64, title }, { headers: corsHeaders });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        console.error("State error:", errorMessage, err);
+        return Response.json({ error: `Failed to get state: ${errorMessage}` }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    // POST /init - initialize note with content (for duplication)
+    if (req.method === "POST" && url.pathname.endsWith("/init")) {
+      try {
+        const body = await req.json() as { state: string; title?: string };
+
+        if (!body.state) {
+          return Response.json({ error: "Missing state" }, { status: 400, headers: corsHeaders });
+        }
+
+        // Store the initial state - it will be applied when client connects
+        // y-partykit uses "ydoc:default" key for the snapshot
+        await this.room.storage.put("ydoc:default", body.state);
+
+        // Also store title for when client connects
+        if (body.title) {
+          await this.room.storage.put("initialTitle", body.title);
+        }
+
+        // No versions for duplicated note
+        await this.room.storage.put("versions", []);
+
+        return Response.json({ success: true }, { headers: corsHeaders });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        console.error("Init error:", errorMessage, err);
+        return Response.json({ error: `Failed to initialize: ${errorMessage}` }, { status: 500, headers: corsHeaders });
+      }
     }
 
     return Response.json({ error: "Not found" }, { status: 404, headers: corsHeaders });
@@ -172,45 +252,52 @@ export default class YjsServer implements Party.Server {
     const now = Date.now();
     const IDLE_THRESHOLD = 60000;      // 60 seconds idle before saving
     const MIN_CHAR_CHANGE = 20;        // Minimum 20 chars changed
-    const TIME_WINDOW = 5 * 60 * 1000; // 5 minute windows
+    const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
+    const MIN_TIME_BETWEEN = 30000;    // Minimum 30 seconds between versions
 
-    // Get current document state and content length
+    // Get text content for character counting
+    const xmlFragment = ydoc.getXmlFragment("default");
+    const contentText = xmlFragment.toString();
+    const currentLength = contentText.length;
+
+    // Skip if content is too short (empty or nearly empty note)
+    if (currentLength < MIN_CONTENT_LENGTH) {
+      return;
+    }
+
+    // Get current document state
     const state = Y.encodeStateAsUpdate(ydoc);
     const stateBase64 = uint8ArrayToBase64(state);
     const currentHash = this.simpleHash(stateBase64);
 
-    // Get text content for character counting
-    const xmlFragment = ydoc.getXmlFragment("default");
-    const currentLength = xmlFragment.toString().length;
-
-    // Check if content actually changed (by hash)
+    // Check if identical to last saved state
     const lastStateHash = await this.room.storage.get<string>("lastStateHash");
     if (lastStateHash === currentHash) {
       return;
     }
 
+    // Check if identical to most recent version (avoid duplicates)
+    const versions = await this.room.storage.get<Version[]>("versions") || [];
+    if (versions.length > 0) {
+      const lastVersionState = await this.room.storage.get<string>(`version:${versions[0].id}`);
+      if (lastVersionState) {
+        const lastVersionHash = this.simpleHash(lastVersionState);
+        if (lastVersionHash === currentHash) {
+          // Content is same as last version, just update tracking
+          await this.room.storage.put("lastStateHash", currentHash);
+          return;
+        }
+      }
+    }
+
     // Track editing activity
     const lastActivity = await this.room.storage.get<number>("lastActivity") || now;
-    const windowStart = await this.room.storage.get<number>("windowStart") || now;
     const lastSavedLength = await this.room.storage.get<number>("lastSavedLength") || 0;
 
     // Update last activity time
     await this.room.storage.put("lastActivity", now);
 
-    // If this is first activity or new window (after 5 min gap), start new window
-    if (now - lastActivity > TIME_WINDOW) {
-      await this.room.storage.put("windowStart", now);
-      await this.room.storage.put("pendingStateBase64", stateBase64);
-      await this.room.storage.put("pendingStateHash", currentHash);
-      return;
-    }
-
-    // Store pending state (most recent state in current window)
-    await this.room.storage.put("pendingStateBase64", stateBase64);
-    await this.room.storage.put("pendingStateHash", currentHash);
-    await this.room.storage.put("pendingLength", currentLength);
-
-    // Check if enough time has passed since last save (idle threshold)
+    // Check if enough time has passed since last version
     const lastVersionSave = await this.room.storage.get<number>("lastVersionSave") || 0;
     if (now - lastVersionSave < IDLE_THRESHOLD) {
       return;
@@ -223,61 +310,67 @@ export default class YjsServer implements Party.Server {
     }
 
     // All conditions met - save version
-    const versions = await this.room.storage.get<Version[]>("versions") || [];
-    const meta = ydoc.getMap("meta");
-    const title = meta.get("title") as string || "Untitled";
-
-    const lastActiveUser = await this.room.storage.get<UserInfo>("lastActiveUser");
-    const editedBy = lastActiveUser?.name || "Unknown";
-    const editorColor = lastActiveUser?.color || "#888888";
-
-    const actualWindowStart = await this.room.storage.get<number>("windowStart") || now;
-    const versionId = `v_${now}`;
-
-    // Store the version content
-    await this.room.storage.put(`version:${versionId}`, stateBase64);
-
-    // Update versions list (keep last 50)
-    const newVersion: Version = {
-      id: versionId,
-      timestamp: now,
-      title,
-      editedBy,
-      editorColor,
-      windowStart: actualWindowStart,
-      windowEnd: now,
-    };
-
-    const updatedVersions = [newVersion, ...versions].slice(0, 50);
-    await this.room.storage.put("versions", updatedVersions);
-    await this.room.storage.put("lastVersionSave", now);
-    await this.room.storage.put("lastStateHash", currentHash);
-    await this.room.storage.put("lastSavedLength", currentLength);
-
-    // Start new window for next batch
-    await this.room.storage.put("windowStart", now);
+    await this.saveVersionInternal(ydoc, stateBase64, currentHash, currentLength, now);
   }
 
   async forceSaveVersion(ydoc: Y.Doc) {
     const now = Date.now();
+    const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
+    const MIN_TIME_BETWEEN = 30000;    // Minimum 30 seconds between versions
+
+    // Get text content
+    const xmlFragment = ydoc.getXmlFragment("default");
+    const contentText = xmlFragment.toString();
+    const currentLength = contentText.length;
+
+    // Skip if content is too short
+    if (currentLength < MIN_CONTENT_LENGTH) {
+      return;
+    }
 
     // Get current document state
     const state = Y.encodeStateAsUpdate(ydoc);
     const stateBase64 = uint8ArrayToBase64(state);
     const currentHash = this.simpleHash(stateBase64);
 
-    // Check if content actually changed (by hash) - skip if identical
+    // Check if identical to last saved state
     const lastStateHash = await this.room.storage.get<string>("lastStateHash");
     if (lastStateHash === currentHash) {
       return;
     }
 
-    // Get text content length for tracking
-    const xmlFragment = ydoc.getXmlFragment("default");
-    const currentLength = xmlFragment.toString().length;
+    // Check minimum time between versions
+    const lastVersionSave = await this.room.storage.get<number>("lastVersionSave") || 0;
+    if (now - lastVersionSave < MIN_TIME_BETWEEN) {
+      // Just update tracking, don't create new version
+      await this.room.storage.put("lastStateHash", currentHash);
+      return;
+    }
 
-    // Always save on exit (no char threshold check)
+    // Check if identical to most recent version
+    const versions = await this.room.storage.get<Version[]>("versions") || [];
+    if (versions.length > 0) {
+      const lastVersionState = await this.room.storage.get<string>(`version:${versions[0].id}`);
+      if (lastVersionState) {
+        const lastVersionHash = this.simpleHash(lastVersionState);
+        if (lastVersionHash === currentHash) {
+          await this.room.storage.put("lastStateHash", currentHash);
+          return;
+        }
+      }
+    }
+
     // Save version
+    await this.saveVersionInternal(ydoc, stateBase64, currentHash, currentLength, now);
+  }
+
+  private async saveVersionInternal(
+    ydoc: Y.Doc,
+    stateBase64: string,
+    currentHash: string,
+    currentLength: number,
+    now: number
+  ) {
     const versions = await this.room.storage.get<Version[]>("versions") || [];
     const meta = ydoc.getMap("meta");
     const title = meta.get("title") as string || "Untitled";
@@ -286,27 +379,26 @@ export default class YjsServer implements Party.Server {
     const editedBy = lastActiveUser?.name || "Unknown";
     const editorColor = lastActiveUser?.color || "#888888";
 
-    const windowStart = await this.room.storage.get<number>("windowStart") || now;
     const versionId = `v_${now}`;
 
+    // Store the version content
     await this.room.storage.put(`version:${versionId}`, stateBase64);
 
+    // Create version entry
     const newVersion: Version = {
       id: versionId,
       timestamp: now,
       title,
       editedBy,
       editorColor,
-      windowStart,
-      windowEnd: now,
     };
 
+    // Update versions list (keep last 50)
     const updatedVersions = [newVersion, ...versions].slice(0, 50);
     await this.room.storage.put("versions", updatedVersions);
     await this.room.storage.put("lastVersionSave", now);
     await this.room.storage.put("lastStateHash", currentHash);
     await this.room.storage.put("lastSavedLength", currentLength);
-    await this.room.storage.put("windowStart", now);
   }
 
   simpleHash(str: string): string {

@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useCallback, useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
   Text,
@@ -13,10 +13,21 @@ const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
 export function NotePage() {
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addRecentNote, removeRecentNote, isNoteOwner } = useAppStore();
   const [copied, setCopied] = useState(false);
+  const [pendingDuplicate, setPendingDuplicate] = useState(false);
 
   const isOwner = noteId ? isNoteOwner(noteId) : false;
+
+  // Check for duplicate action in URL
+  useEffect(() => {
+    if (searchParams.get("action") === "duplicate") {
+      setPendingDuplicate(true);
+      // Clear the action from URL
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleTitleChange = useCallback((title: string) => {
     if (noteId) {
@@ -47,6 +58,12 @@ export function NotePage() {
 
   const handleBack = () => navigate("/");
 
+  const handleDuplicate = (newNoteId: string, newTitle: string) => {
+    setPendingDuplicate(false);
+    addRecentNote(newNoteId, newTitle);
+    navigate(`/note/${newNoteId}`);
+  };
+
   if (!noteId) {
     return <Text>Invalid note ID</Text>;
   }
@@ -63,6 +80,8 @@ export function NotePage() {
           onBack={handleBack}
           onShare={handleCopyLink}
           onDelete={isOwner ? handleDelete : undefined}
+          onDuplicate={handleDuplicate}
+          autoDuplicate={pendingDuplicate}
           shareButtonState={copied ? "copied" : "default"}
         />
       </Box>

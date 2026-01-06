@@ -17,8 +17,6 @@ interface Version {
   title: string;
   editedBy?: string;
   editorColor?: string;
-  windowStart?: number;
-  windowEnd?: number;
 }
 
 export type ViewMode = "editing" | "preview" | "compare";
@@ -97,20 +95,78 @@ export function HistoryPanel({
   }, [isOpen, noteId]);
 
   const handleRestore = async (versionId: string) => {
+    // Find the version to show in confirmation
+    const version = versions.find(v => v.id === versionId);
+    const versionDate = version ? new Date(version.timestamp).toLocaleString() : "this version";
+
+    const confirmed = confirm(
+      `Restore to version from ${versionDate}?\n\n` +
+      `This will replace the current content with the selected version.\n` +
+      `The current content will be saved as a new version.`
+    );
+
+    if (!confirmed) return;
+
     setRestoring(versionId);
     try {
       const protocol = partykitHost.includes("localhost") ? "http" : "https";
       const res = await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/restore/${versionId}`, {
         method: "POST",
       });
+
       if (res.ok) {
+        const data = await res.json();
+
+        // Apply the restored state to the current document
+        if (data.state && currentDoc) {
+          const state = base64ToUint8Array(data.state);
+
+          // Create temp doc with the old state
+          const tempDoc = new Y.Doc();
+          Y.applyUpdate(tempDoc, state);
+
+          // Get old content and title
+          const oldContent = tempDoc.getXmlFragment("default");
+          const oldMeta = tempDoc.getMap("meta");
+          const oldTitle = oldMeta.get("title") as string;
+
+          // Clear current content
+          const currentContent = currentDoc.getXmlFragment("default");
+          currentDoc.transact(() => {
+            // Delete all current content
+            while (currentContent.length > 0) {
+              currentContent.delete(0, 1);
+            }
+
+            // Clone and insert old content elements
+            for (let i = 0; i < oldContent.length; i++) {
+              const element = oldContent.get(i);
+              if (element) {
+                currentContent.insert(i, [element.clone()]);
+              }
+            }
+
+            // Update title
+            const currentMeta = currentDoc.getMap("meta");
+            if (oldTitle) {
+              currentMeta.set("title", oldTitle);
+            }
+          });
+
+          tempDoc.destroy();
+        }
+
         onPreview(null);
         onCompare(null);
         onRestore();
         fetchVersions();
+      } else {
+        console.error("Failed to restore version:", res.status);
+        alert("Failed to restore version. Please try again.");
       }
     } catch (err) {
       console.error("Failed to restore version:", err);
+      alert("Failed to restore version. Please try again.");
     }
     setRestoring(null);
   };
