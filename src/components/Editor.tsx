@@ -135,7 +135,7 @@ export function CollaborativeEditor({
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<YPartyKitProvider | null>(null);
-  const titleMapRef = useRef<Y.Map<string> | null>(null);
+  const titleMapRef = useRef<Y.Map<unknown> | null>(null);
   const connectionIdRef = useRef<string>("");
 
   // Generate new connection ID on each mount
@@ -161,7 +161,7 @@ export function CollaborativeEditor({
 
   // Initialize title map
   if (!titleMapRef.current) {
-    titleMapRef.current = ydoc.getMap<string>("meta");
+    titleMapRef.current = ydoc.getMap<unknown>("meta");
   }
   const titleMap = titleMapRef.current;
 
@@ -279,7 +279,7 @@ export function CollaborativeEditor({
 
   useEffect(() => {
     const updateMeta = () => {
-      const newTitle = titleMap.get("title") || "";
+      const newTitle = (titleMap.get("title") as string) || "";
       setTitle(newTitle);
       onTitleChange?.(newTitle);
 

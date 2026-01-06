@@ -8,7 +8,7 @@ import {
   Box,
 } from "@chakra-ui/react";
 import { LuTriangleAlert, LuInfo, LuTrash2, LuCopy, LuRotateCcw } from "react-icons/lu";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export type DialogVariant = "danger" | "warning" | "info" | "duplicate" | "restore";
 
