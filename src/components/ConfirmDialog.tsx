@@ -39,9 +39,9 @@ const variantConfig = {
   },
   info: {
     icon: LuInfo,
-    iconBg: "blue.100",
-    iconColor: "blue.600",
-    confirmColor: "blue" as const,
+    iconBg: "#EEF2FF",
+    iconColor: "#4F46E5",
+    confirmColor: "purple" as const,
   },
   duplicate: {
     icon: LuCopy,
@@ -51,9 +51,9 @@ const variantConfig = {
   },
   restore: {
     icon: LuRotateCcw,
-    iconBg: "blue.100",
-    iconColor: "blue.600",
-    confirmColor: "blue" as const,
+    iconBg: "#EEF2FF",
+    iconColor: "#4F46E5",
+    confirmColor: "purple" as const,
   },
 };
 
@@ -208,9 +208,9 @@ const alertVariantConfig = {
   },
   info: {
     icon: LuInfo,
-    iconBg: "blue.100",
-    iconColor: "blue.600",
-    buttonColor: "blue" as const,
+    iconBg: "#EEF2FF",
+    iconColor: "#4F46E5",
+    buttonColor: "purple" as const,
   },
 };
 

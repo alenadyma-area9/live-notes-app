@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Box, HStack, VStack, Input, IconButton, Button, Text, Tooltip } from "@chakra-ui/react";
 import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -11,7 +11,7 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuArrowLeft, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen } from "react-icons/lu";
+import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
@@ -20,43 +20,7 @@ import { InlineDiffView } from "./InlineDiffView";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 import { useAppStore } from "../store";
-import { Portal } from "@chakra-ui/react";
 
-// Component that shows tooltip only when text is truncated
-function TruncatedTitle({ children, ...textProps }: { children: string } & React.ComponentProps<typeof Text>): ReactNode {
-  const textRef = useRef<HTMLParagraphElement>(null);
-  const [isTruncated, setIsTruncated] = useState(false);
-
-  useEffect(() => {
-    const el = textRef.current;
-    if (el) {
-      setIsTruncated(el.scrollWidth > el.clientWidth);
-    }
-  }, [children]);
-
-  const textElement = (
-    <Text ref={textRef} truncate {...textProps}>
-      {children}
-    </Text>
-  );
-
-  if (!isTruncated) {
-    return textElement;
-  }
-
-  return (
-    <Tooltip.Root openDelay={300} closeDelay={50}>
-      <Tooltip.Trigger asChild>
-        {textElement}
-      </Tooltip.Trigger>
-      <Portal>
-        <Tooltip.Positioner>
-          <Tooltip.Content maxW="500px" zIndex={9999}>{children}</Tooltip.Content>
-        </Tooltip.Positioner>
-      </Portal>
-    </Tooltip.Root>
-  );
-}
 
 interface EditorProps {
   noteId: string;
@@ -132,6 +96,12 @@ export function CollaborativeEditor({
   const [isLocked, setIsLocked] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+
+  const showToast = useCallback((message: string, type: "success" | "info" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2000);
+  }, []);
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<YPartyKitProvider | null>(null);
@@ -270,12 +240,15 @@ export function CollaborativeEditor({
         setTitle(newTitle);
         setTimeout(() => setTitle(newTitle), 0);
 
+        // Update the store with the correct title immediately
+        onTitleChange?.(newTitle);
+
         console.log("[Duplicate] State and title applied successfully:", newTitle);
       } catch (err) {
         console.error("[Duplicate] Failed to apply duplicate state:", err);
       }
     }
-  }, [isConnected, noteId]);
+  }, [isConnected, noteId, onTitleChange]);
 
   useEffect(() => {
     const updateMeta = () => {
@@ -583,17 +556,59 @@ export function CollaborativeEditor({
     }
   }, [editor, titleMap]);
 
+
+
   if (!isConnected || !isUserRegistered) {
     return (
-      <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" p={8} textAlign="center">
-        Connecting...
-      </Box>
+      <VStack h="100%" justify="center" align="center" gap={4}>
+        <Box
+          position="relative"
+          w={16}
+          h={16}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          {/* Pulsing ring */}
+          <Box
+            position="absolute"
+            w="100%"
+            h="100%"
+            borderRadius="full"
+            bg="#6366F1"
+            opacity={0.2}
+            animation="pulse 1.5s ease-in-out infinite"
+            css={{
+              "@keyframes pulse": {
+                "0%, 100%": { transform: "scale(1)", opacity: 0.2 },
+                "50%": { transform: "scale(1.2)", opacity: 0.1 },
+              },
+            }}
+          />
+          {/* Logo */}
+          <Box
+            bg="#6366F1"
+            color="white"
+            p={3}
+            borderRadius="xl"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            zIndex={1}
+          >
+            <LuPenLine size={24} />
+          </Box>
+        </Box>
+        <Text color="gray.500" fontSize="sm" fontWeight="medium">
+          Connecting to note...
+        </Text>
+      </VStack>
     );
   }
 
   if (isDeleted) {
     return (
-      <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" p={8} textAlign="center">
+      <Box borderRadius="xl" boxShadow="0 4px 24px rgba(0, 0, 0, 0.08)" bg="white" p={8} textAlign="center">
         <Text fontSize="xl" color="gray.500" mb={2}>📭</Text>
         <Text fontSize="lg" fontWeight="medium" color="gray.600">This note has been deleted</Text>
         <Text fontSize="sm" color="gray.400" mt={1}>The owner has removed this note.</Text>
@@ -612,7 +627,7 @@ export function CollaborativeEditor({
   // Show locked message for non-owners
   if (isLocked && !isOwner) {
     return (
-      <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" p={8} textAlign="center">
+      <Box borderRadius="xl" boxShadow="0 4px 24px rgba(0, 0, 0, 0.08)" bg="white" p={8} textAlign="center">
         <Text fontSize="xl" color="gray.500" mb={2}>🔒</Text>
         <Text fontSize="lg" fontWeight="medium" color="gray.600">This note is locked</Text>
         <Text fontSize="sm" color="gray.400" mt={1}>The owner has restricted access to this note.</Text>
@@ -640,14 +655,15 @@ export function CollaborativeEditor({
       minHeight: "400px",
       outline: "none",
       color: "#1a1a1a",
-      "& p": { margin: "0.5em 0" },
-      "& h1": { fontSize: "1.875rem", fontWeight: "bold", margin: "0.5em 0" },
-      "& h2": { fontSize: "1.5rem", fontWeight: "bold", margin: "0.5em 0" },
-      "& strong, & b": { fontWeight: "bold" },
+      lineHeight: "1.7",
+      "& p": { margin: "0.75em 0", lineHeight: "1.7" },
+      "& h1": { fontSize: "1.5rem", fontWeight: "600", margin: "1em 0 0.5em", lineHeight: "1.3" },
+      "& h2": { fontSize: "1.2rem", fontWeight: "600", margin: "1em 0 0.5em", lineHeight: "1.4" },
+      "& strong, & b": { fontWeight: "600" },
       "& em, & i": { fontStyle: "italic" },
       "& s, & strike": { textDecoration: "line-through" },
-      "& ul": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "disc" },
-      "& ol": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "decimal" },
+      "& ul": { paddingLeft: "1.5em", margin: "0.75em 0", listStyleType: "disc", lineHeight: "1.7" },
+      "& ol": { paddingLeft: "1.5em", margin: "0.75em 0", listStyleType: "decimal", lineHeight: "1.7" },
       "& li": { margin: "0.25em 0", display: "list-item" },
       "& li p": { margin: "0" },
       "& img": {
@@ -657,11 +673,11 @@ export function CollaborativeEditor({
         margin: "0.5em 0",
       },
       "& a": {
-        color: "#3182ce",
+        color: "#6366F1",
         textDecoration: "underline",
         cursor: "pointer",
         "&:hover": {
-          color: "#2c5282",
+          color: "#4F46E5",
         },
       },
     },
@@ -690,191 +706,280 @@ export function CollaborativeEditor({
   };
 
   return (
-    <HStack align="stretch" gap={0} h="100%">
-      {/* Main content area */}
-      <Box
-        flex={1}
-        minW={0}
-        maxW={historyOpen ? "none" : "800px"}
-        mx={historyOpen ? 0 : "auto"}
-        border="1px solid"
-        borderColor="gray.200"
-        borderRadius={historyOpen ? "md 0 0 md" : "md"}
+    <VStack align="stretch" gap={0} h="100%">
+      {/* Full-width top bar */}
+      <HStack
+        px={4}
+        h="56px"
         bg="white"
-        overflow="hidden"
-        display="flex"
-        flexDirection="column"
+        borderBottom="1px solid"
+        borderColor="gray.100"
+        flexShrink={0}
+        gap={3}
       >
-        {/* Top bar: Back | Avatars | Share | Delete | History */}
-        <HStack
-          px={4}
-          h="49px"
-          bg="gray.50"
-          borderBottom="1px solid"
-          borderColor="gray.200"
-          justify="space-between"
+        {/* Left: Logo as Home button */}
+        <Tooltip.Root openDelay={100} closeDelay={50}>
+          <Tooltip.Trigger asChild>
+            <Box
+              as="button"
+              onClick={onBack}
+              bg="#6366F1"
+              color="white"
+              p={2}
+              borderRadius="lg"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              cursor="pointer"
+              _hover={{ bg: "#4F46E5" }}
+              transition="background 0.15s ease"
+              flexShrink={0}
+            >
+              <LuPenLine size={18} />
+            </Box>
+          </Tooltip.Trigger>
+          <Tooltip.Positioner>
+            <Tooltip.Content>Back to notes</Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+
+        {/* Center: Title - flex to fill available space */}
+        <Box
+          flex={1}
+          minW={0}
+          overflow="hidden"
         >
-          {/* Left: Back button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-          >
-            <LuArrowLeft />
-            <Text display={{ base: "none", sm: "inline" }}>Back</Text>
-          </Button>
-
-          {/* Right: Avatars + Actions */}
-          <HStack gap={3}>
-            {/* Avatars */}
-            <CollaboratorsList
-              provider={provider}
-              currentUser={{ name: userName, color: userColor }}
-              maxDisplay={4}
-            />
-
-            {/* Share */}
-            {onShare && (
-              <Tooltip.Root openDelay={100} closeDelay={50}>
-                <Tooltip.Trigger asChild>
-                  <IconButton
-                    aria-label={shareButtonState === "copied" ? "Copied!" : "Share"}
-                    variant="ghost"
-                    size="sm"
-                    onClick={isLocked ? undefined : onShare}
-                    colorPalette={shareButtonState === "copied" ? "green" : "gray"}
-                    disabled={isLocked}
-                    opacity={isLocked ? 0.5 : 1}
-                  >
-                    {shareButtonState === "copied" ? <LuCheck /> : <LuShare2 />}
-                  </IconButton>
-                </Tooltip.Trigger>
-                <Tooltip.Positioner>
-                  <Tooltip.Content>
-                    {isLocked ? "Unlock to share" : shareButtonState === "copied" ? "Copied!" : "Share link"}
-                  </Tooltip.Content>
-                </Tooltip.Positioner>
-              </Tooltip.Root>
-            )}
-
-            {/* Lock/Unlock (owner only) */}
-            {isOwner && (
-              <Tooltip.Root openDelay={100} closeDelay={50}>
-                <Tooltip.Trigger asChild>
-                  <IconButton
-                    aria-label={isLocked ? "Unlock note" : "Lock note"}
-                    variant={isLocked ? "solid" : "ghost"}
-                    size="sm"
-                    onClick={handleLockClick}
-                    colorPalette={isLocked ? "orange" : "gray"}
-                  >
-                    {isLocked ? <LuLock /> : <LuLockOpen />}
-                  </IconButton>
-                </Tooltip.Trigger>
-                <Tooltip.Positioner>
-                  <Tooltip.Content>
-                    {isLocked ? "Unlock note" : "Lock note"}
-                  </Tooltip.Content>
-                </Tooltip.Positioner>
-              </Tooltip.Root>
-            )}
-
-            {/* Duplicate */}
-            {onDuplicate && (
-              <Tooltip.Root openDelay={100} closeDelay={50}>
-                <Tooltip.Trigger asChild>
-                  <IconButton
-                    aria-label="Duplicate"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDuplicateDialogOpen(true)}
-                  >
-                    <LuCopy />
-                  </IconButton>
-                </Tooltip.Trigger>
-                <Tooltip.Positioner>
-                  <Tooltip.Content>Duplicate note</Tooltip.Content>
-                </Tooltip.Positioner>
-              </Tooltip.Root>
-            )}
-
-            {/* Delete */}
-            {onDelete && (
-              <Tooltip.Root openDelay={100} closeDelay={50}>
-                <Tooltip.Trigger asChild>
-                  <IconButton
-                    aria-label="Delete"
-                    variant="ghost"
-                    size="sm"
-                    colorPalette="red"
-                    onClick={onDelete}
-                  >
-                    <LuTrash2 />
-                  </IconButton>
-                </Tooltip.Trigger>
-                <Tooltip.Positioner>
-                  <Tooltip.Content>Delete note</Tooltip.Content>
-                </Tooltip.Positioner>
-              </Tooltip.Root>
-            )}
-
-            {/* History */}
-            <Tooltip.Root openDelay={100} closeDelay={50}>
-              <Tooltip.Trigger asChild>
-                <IconButton
-                  aria-label="Version history"
-                  variant={historyOpen ? "solid" : "ghost"}
-                  colorPalette={historyOpen ? "blue" : "gray"}
-                  size="sm"
-                  onClick={() => setHistoryOpen(!historyOpen)}
-                >
-                  <LuHistory />
-                </IconButton>
-              </Tooltip.Trigger>
-              <Tooltip.Positioner>
-                <Tooltip.Content>Version history</Tooltip.Content>
-              </Tooltip.Positioner>
-            </Tooltip.Root>
-          </HStack>
-        </HStack>
-
-        {/* Title row */}
-        <Box px={4} py={3} borderBottom="1px solid" borderColor="gray.100">
           {viewMode === "editing" ? (
             <Input
               value={title}
               onChange={handleTitleChange}
               onFocus={handleTitleFocus}
               placeholder="Untitled note..."
-              variant="flushed"
-              fontSize="xl"
-              fontWeight="bold"
-              border="none"
+              fontSize="md"
+              fontWeight="medium"
+              textAlign="center"
               maxLength={100}
-              _focus={{ boxShadow: "none" }}
+              color={title ? "gray.800" : "gray.400"}
+              _placeholder={{ color: "gray.400" }}
+              border="none"
+              outline="none"
+              boxShadow="none"
+              _focus={{ boxShadow: "none", borderColor: "transparent" }}
+              css={{
+                textOverflow: "ellipsis",
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+              }}
             />
           ) : (
-            <TruncatedTitle fontSize="xl" fontWeight="bold" color="gray.700">
+            <Text
+              fontSize="md"
+              fontWeight="medium"
+              color="gray.700"
+              textAlign="center"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+            >
               {displayTitle || "Untitled"}
-            </TruncatedTitle>
+            </Text>
           )}
         </Box>
 
+        {/* Right: Actions + Avatar */}
+        <HStack gap={1} flexShrink={0}>
+          {/* Share */}
+          {onShare && (
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <IconButton
+                  aria-label={shareButtonState === "copied" ? "Copied!" : "Share"}
+                  variant="ghost"
+                  size="sm"
+                  onClick={isLocked ? undefined : () => {
+                    onShare();
+                    showToast("Link copied to clipboard!", "success");
+                  }}
+                  color={shareButtonState === "copied" ? "green.600" : "gray.600"}
+                  _hover={{ bg: "gray.100", color: "gray.800" }}
+                  disabled={isLocked}
+                  opacity={isLocked ? 0.4 : 1}
+                >
+                  {shareButtonState === "copied" ? <LuCheck /> : <LuShare2 />}
+                </IconButton>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>
+                  {isLocked ? "Unlock to share" : shareButtonState === "copied" ? "Copied!" : "Share link"}
+                </Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
+          )}
+
+          {/* Lock/Unlock (owner only) */}
+          {isOwner && (
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <IconButton
+                  aria-label={isLocked ? "Unlock note" : "Lock note"}
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLockClick}
+                  color={isLocked ? "orange.600" : "gray.600"}
+                  bg={isLocked ? "orange.50" : undefined}
+                  _hover={{ bg: isLocked ? "orange.100" : "gray.100", color: isLocked ? "orange.700" : "gray.800" }}
+                >
+                  {isLocked ? <LuLock /> : <LuLockOpen />}
+                </IconButton>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>
+                  {isLocked ? "Unlock note" : "Lock note"}
+                </Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
+          )}
+
+          {/* Duplicate */}
+          {onDuplicate && (
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <IconButton
+                  aria-label="Duplicate"
+                  variant="ghost"
+                  size="sm"
+                  color="gray.600"
+                  _hover={{ bg: "gray.100", color: "gray.800" }}
+                  onClick={() => setDuplicateDialogOpen(true)}
+                >
+                  <LuCopy />
+                </IconButton>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>Duplicate note</Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
+          )}
+
+          {/* Delete */}
+          {onDelete && (
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <IconButton
+                  aria-label="Delete"
+                  variant="ghost"
+                  size="sm"
+                  color="gray.600"
+                  _hover={{ color: "red.600", bg: "red.50" }}
+                  onClick={onDelete}
+                >
+                  <LuTrash2 />
+                </IconButton>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>Delete note</Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
+          )}
+
+          {/* History */}
+          <Tooltip.Root openDelay={100} closeDelay={50}>
+            <Tooltip.Trigger asChild>
+              <IconButton
+                aria-label="Version history"
+                variant="ghost"
+                size="sm"
+                bg={historyOpen ? "#EEF2FF" : undefined}
+                color={historyOpen ? "#4F46E5" : "gray.600"}
+                _hover={{ bg: historyOpen ? "#E0E7FF" : "gray.100", color: historyOpen ? "#4338CA" : "gray.800" }}
+                onClick={() => setHistoryOpen(!historyOpen)}
+              >
+                <LuHistory />
+              </IconButton>
+            </Tooltip.Trigger>
+            <Tooltip.Positioner>
+              <Tooltip.Content>Version history</Tooltip.Content>
+            </Tooltip.Positioner>
+          </Tooltip.Root>
+
+          {/* Separator */}
+          <Box w="1px" h={6} bg="gray.200" mx={2} />
+
+          {/* Collaborators + You */}
+          <HStack gap={0} ml={1}>
+            {/* Other collaborators (stacked) */}
+            <CollaboratorsList
+              provider={provider}
+              currentUser={{ name: userName, color: userColor }}
+              maxDisplay={4}
+              showCurrentUser={false}
+            />
+
+            {/* You (larger, with ring) */}
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <Box
+                  w={9}
+                  h={9}
+                  borderRadius="full"
+                  bg={userColor}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  cursor="pointer"
+                  border="2px solid white"
+                  boxShadow="0 0 0 2px #6366F1"
+                  ml={-1}
+                  zIndex={10}
+                >
+                  <Text fontSize="sm" fontWeight="bold" color="white">
+                    {userName.charAt(0).toUpperCase()}
+                  </Text>
+                </Box>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>{userName} (you)</Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
+          </HStack>
+        </HStack>
+      </HStack>
+
+      {/* Editor + History */}
+      <Box flex={1} overflow="hidden" px={4} py={4} display="flex" justifyContent="center">
+        <HStack
+          align="stretch"
+          gap={4}
+          maxW={historyOpen ? "1136px" : "800px"}
+          w="100%"
+        >
+          {/* Main content area */}
+          <Box
+            flex={1}
+            minW={0}
+            border="none"
+            borderRadius="xl"
+            boxShadow="0 4px 24px rgba(0, 0, 0, 0.08)"
+            bg="white"
+            overflow="hidden"
+            display="flex"
+            flexDirection="column"
+          >
         {/* Toolbar / Status bar */}
         {viewMode === "editing" ? (
-          <Box bg="gray.50" borderBottom="1px solid" borderColor="gray.200">
+          <Box bg="gray.50" borderBottom="1px solid" borderColor="gray.100">
             <Toolbar editor={editor} />
           </Box>
         ) : (
           <HStack
             px={4}
             py={2}
-            bg={viewMode === "preview" ? "purple.50" : "blue.50"}
+            bg={viewMode === "preview" ? "purple.50" : "#EEF2FF"}
             borderBottom="1px solid"
             borderColor="gray.200"
             justify="space-between"
           >
-            <Text fontSize="sm" color={viewMode === "preview" ? "purple.700" : "blue.700"} fontWeight="medium">
+            <Text fontSize="sm" color={viewMode === "preview" ? "purple.700" : "#4338CA"} fontWeight="medium">
               {viewMode === "preview"
                 ? `Viewing version from ${new Date(previewState!.version.timestamp).toLocaleString(undefined, {
                     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
@@ -887,7 +992,7 @@ export function CollaborativeEditor({
             <Button
               size="xs"
               variant="outline"
-              colorPalette={viewMode === "preview" ? "purple" : "blue"}
+              colorPalette={viewMode === "preview" ? "purple" : "indigo"}
               onClick={() => {
                 handlePreview(null);
                 handleCompare(null);
@@ -925,7 +1030,8 @@ export function CollaborativeEditor({
                       aria-label="Open link"
                       size="xs"
                       variant="ghost"
-                      colorPalette="blue"
+                      color="#6366F1"
+                      _hover={{ bg: "#EEF2FF" }}
                       onClick={() => {
                         const href = editor.getAttributes('link').href;
                         if (href) window.open(href, '_blank', 'noopener,noreferrer');
@@ -963,23 +1069,25 @@ export function CollaborativeEditor({
             />
           )}
         </Box>
-      </Box>
+        </Box>
 
-      {/* History Panel - sidebar */}
-      {historyOpen && (
-        <HistoryPanel
-          noteId={noteId}
-          partykitHost={partykitHost}
-          isOpen={historyOpen}
-          onRestore={handleHistoryRestore}
-          onClose={() => setHistoryOpen(false)}
-          currentDoc={ydoc}
-          viewMode={viewMode}
-          onPreview={handlePreview}
-          onCompare={handleCompare}
-          selectedVersionId={selectedVersionId}
-        />
-      )}
+        {/* History Panel - sidebar */}
+        {historyOpen && (
+          <HistoryPanel
+            noteId={noteId}
+            partykitHost={partykitHost}
+            isOpen={historyOpen}
+            onRestore={handleHistoryRestore}
+            onClose={() => setHistoryOpen(false)}
+            currentDoc={ydoc}
+            viewMode={viewMode}
+            onPreview={handlePreview}
+            onCompare={handleCompare}
+            selectedVersionId={selectedVersionId}
+          />
+        )}
+        </HStack>
+      </Box>
 
       {/* Duplicate Confirmation Dialog */}
       <ConfirmDialog
@@ -1052,7 +1160,30 @@ export function CollaborativeEditor({
           )
         }
       />
-    </HStack>
+
+      {/* Toast notification */}
+      {toast && (
+        <Box
+          position="fixed"
+          bottom={4}
+          left="50%"
+          transform="translateX(-50%)"
+          bg={toast.type === "success" ? "green.500" : "#6366F1"}
+          color="white"
+          px={4}
+          py={2}
+          borderRadius="md"
+          boxShadow="lg"
+          zIndex={1000}
+          display="flex"
+          alignItems="center"
+          gap={2}
+        >
+          <LuCheck size={16} />
+          <Text fontSize="sm" fontWeight="medium">{toast.message}</Text>
+        </Box>
+      )}
+    </VStack>
   );
 }
 

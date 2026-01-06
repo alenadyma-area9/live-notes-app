@@ -42,14 +42,25 @@ export default class YjsServer implements Party.Server {
   async onConnect(conn: Party.Connection) {
     // Check for initial title from duplication
     const initialTitle = await this.room.storage.get<string>("initialTitle");
+    // Check lock state from storage (source of truth)
+    const isLocked = await this.room.storage.get<boolean>("locked");
 
     return onConnect(conn, this.room, {
       persist: { mode: "snapshot" },
       callback: {
         handler: async (ydoc) => {
+          const meta = ydoc.getMap("meta");
+
+          // Sync lock state from storage to Y.Doc (storage is source of truth)
+          if (isLocked !== undefined) {
+            const docLocked = meta.get("locked");
+            if (docLocked !== isLocked) {
+              meta.set("locked", isLocked);
+            }
+          }
+
           // Apply initial title if this is a duplicated note
           if (initialTitle) {
-            const meta = ydoc.getMap("meta");
             if (!meta.get("title")) {
               meta.set("title", initialTitle);
               meta.set("titleEdited", "true");
@@ -163,6 +174,43 @@ export default class YjsServer implements Party.Server {
       }
     }
 
+    // POST /lock - toggle lock status
+    if (req.method === "POST" && url.pathname.endsWith("/lock")) {
+      try {
+        const body = await req.json() as { locked: boolean };
+
+        // Store in room storage (works without active connections)
+        await this.room.storage.put("locked", body.locked);
+
+        // Also try to update Y.Doc if available (for active clients)
+        try {
+          const ydoc = await unstable_getYDoc(this.room);
+          if (ydoc) {
+            const meta = ydoc.getMap("meta");
+            meta.set("locked", body.locked);
+          }
+        } catch {
+          // Y.Doc not available, that's OK - storage is updated
+        }
+
+        return Response.json({ success: true, locked: body.locked }, { headers: corsHeaders });
+      } catch (err) {
+        console.error("Lock error:", err);
+        return Response.json({ error: "Failed to toggle lock" }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    // GET /lock-status - check lock status
+    if (req.method === "GET" && url.pathname.endsWith("/lock-status")) {
+      try {
+        const locked = await this.room.storage.get<boolean>("locked") || false;
+        return Response.json({ locked }, { headers: corsHeaders });
+      } catch (err) {
+        console.error("Lock status error:", err);
+        return Response.json({ locked: false }, { headers: corsHeaders });
+      }
+    }
+
     // GET /status - check if note is deleted
     if (req.method === "GET" && url.pathname.endsWith("/status")) {
       try {
@@ -197,16 +245,38 @@ export default class YjsServer implements Party.Server {
     // GET /state - get current document state (for duplication)
     if (req.method === "GET" && url.pathname.endsWith("/state")) {
       try {
-        // Try to get the Y.Doc - this creates/loads it if needed
-        const ydoc = await unstable_getYDoc(this.room);
-        if (!ydoc) {
-          return Response.json({ error: "Document not found" }, { status: 404, headers: corsHeaders });
+        let stateBase64: string | undefined;
+        let title = "";
+
+        // Try to get live Y.Doc first (if there are active connections)
+        try {
+          const ydoc = await unstable_getYDoc(this.room);
+          if (ydoc) {
+            const state = Y.encodeStateAsUpdate(ydoc);
+            stateBase64 = uint8ArrayToBase64(state);
+            const meta = ydoc.getMap("meta");
+            title = (meta.get("title") as string) || "";
+          }
+        } catch {
+          // Y.Doc not available (no active connections) - fall back to snapshot
         }
 
-        const state = Y.encodeStateAsUpdate(ydoc);
-        const stateBase64 = uint8ArrayToBase64(state);
-        const meta = ydoc.getMap("meta");
-        const title = (meta.get("title") as string) || "";
+        // Fall back to persisted snapshot if Y.Doc unavailable
+        if (!stateBase64) {
+          stateBase64 = await this.room.storage.get<string>("ydoc:default");
+          if (stateBase64) {
+            // Extract title from the snapshot
+            const tempDoc = new Y.Doc();
+            Y.applyUpdate(tempDoc, base64ToUint8Array(stateBase64));
+            const meta = tempDoc.getMap("meta");
+            title = (meta.get("title") as string) || "";
+            tempDoc.destroy();
+          }
+        }
+
+        if (!stateBase64) {
+          return Response.json({ error: "Document not found" }, { status: 404, headers: corsHeaders });
+        }
 
         return Response.json({ state: stateBase64, title }, { headers: corsHeaders });
       } catch (err) {

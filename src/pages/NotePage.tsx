@@ -6,7 +6,6 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { CollaborativeEditor } from "../components/Editor";
-import { Header } from "../components/Header";
 import { useAppStore } from "../store";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
@@ -85,10 +84,8 @@ export function NotePage() {
   }
 
   return (
-    <Box h="100vh" bg="gray.50" overflow="hidden" display="flex" flexDirection="column">
-      <Header />
-
-      <Box flex={1} maxW="1200px" w="100%" mx="auto" px={4} py={4} overflow="hidden">
+    <Box h="100vh" bg="#F8FAFC" overflow="hidden" display="flex" flexDirection="column">
+      <Box flex={1} w="100%" overflow="hidden">
         <CollaborativeEditor
           noteId={noteId}
           partykitHost={PARTYKIT_HOST}

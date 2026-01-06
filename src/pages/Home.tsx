@@ -70,8 +70,10 @@ type SortOption = "lastEdited" | "created" | "title" | "author";
 
 export function Home() {
   const navigate = useNavigate();
-  const { recentNotes, removeRecentNote, addRecentNote, isNoteOwner, userId, viewType, setViewType } = useAppStore();
+  const { recentNotes, removeRecentNote, addRecentNote, isNoteOwner, userId, viewType, setViewType, updateNoteLocked } = useAppStore();
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
   // Search, filter, sort state
   const [searchQuery, setSearchQuery] = useState("");
@@ -81,8 +83,22 @@ export function Home() {
   // Dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [lockDialogOpen, setLockDialogOpen] = useState(false);
+  const [isLocking, setIsLocking] = useState(false);
   const [pendingActionNoteId, setPendingActionNoteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cmd+K shortcut for search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const showToast = (message: string, type: "success" | "info" = "success") => {
     setToast({ message, type });
@@ -182,6 +198,43 @@ export function Home() {
     setPendingActionNoteId(null);
   }, [pendingActionNoteId, recentNotes, addRecentNote]);
 
+  const handleLockClick = (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPendingActionNoteId(noteId);
+    setLockDialogOpen(true);
+  };
+
+  const handleLockConfirm = useCallback(async () => {
+    if (!pendingActionNoteId) return;
+
+    const note = recentNotes.find(n => n.id === pendingActionNoteId);
+    const newLockedState = !note?.isLocked;
+
+    setIsLocking(true);
+    try {
+      const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
+      const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locked: newLockedState }),
+      });
+
+      if (res.ok) {
+        updateNoteLocked(pendingActionNoteId, newLockedState);
+        showToast(newLockedState ? "Note locked" : "Note unlocked", "success");
+      } else {
+        showToast("Failed to update lock status", "info");
+      }
+    } catch (err) {
+      console.error("Failed to toggle lock:", err);
+      showToast("Failed to update lock status", "info");
+    }
+
+    setIsLocking(false);
+    setLockDialogOpen(false);
+    setPendingActionNoteId(null);
+  }, [pendingActionNoteId, recentNotes, updateNoteLocked]);
+
   // Get pending note info for dialogs
   const pendingNote = pendingActionNoteId ? recentNotes.find(n => n.id === pendingActionNoteId) : null;
 
@@ -272,8 +325,8 @@ export function Home() {
   };
 
   return (
-    <Box minH="100vh" bg="gray.50">
-      <Header showNameInput />
+    <Box minH="100vh" bg="#F8FAFC">
+      <Header />
 
       {/* Toast notification */}
       {toast && (
@@ -282,7 +335,7 @@ export function Home() {
           bottom={4}
           left="50%"
           transform="translateX(-50%)"
-          bg={toast.type === "success" ? "green.500" : "blue.500"}
+          bg={toast.type === "success" ? "green.500" : "#6366F1"}
           color="white"
           px={4}
           py={2}
@@ -300,33 +353,86 @@ export function Home() {
 
       <Container maxW="900px" py={8}>
         <VStack gap={6} align="stretch">
-          <Button
-            colorPalette="blue"
-            size="lg"
-            onClick={handleCreateNote}
-          >
-            <LuPlus /> Create New Note
-          </Button>
-
-          {recentNotes.length > 0 && (
+          {recentNotes.length === 0 ? (
+            /* Empty state */
+            <Box textAlign="center" py={16}>
+              <Text fontSize="4xl" mb={4}>📝</Text>
+              <Text fontSize="xl" fontWeight="semibold" color="gray.700" mb={2}>
+                No notes yet
+              </Text>
+              <Text fontSize="sm" color="gray.500" mb={6}>
+                Create your first note and start collaborating
+              </Text>
+              <Button
+                bg="#6366F1"
+                color="white"
+                size="lg"
+                onClick={handleCreateNote}
+                borderRadius="xl"
+                px={8}
+                boxShadow="md"
+                _hover={{ bg: "#4F46E5", boxShadow: "lg", transform: "translateY(-2px)" }}
+                transition="all 0.2s"
+              >
+                <LuPlus /> Create Your First Note
+              </Button>
+            </Box>
+          ) : (
             <Box>
               {/* Search, Filter, Sort Controls */}
               <HStack mb={4} gap={3}>
-                {/* Search - styled nicely */}
-                <Input
-                  placeholder="Search notes..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  flex={1}
-                  bg="white"
-                  border="1px solid"
-                  borderColor="gray.200"
-                  borderRadius="md"
-                  fontSize="md"
-                  _placeholder={{ color: "gray.400" }}
-                  _hover={{ borderColor: "gray.300" }}
-                  _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px var(--chakra-colors-blue-400)", outline: "none" }}
-                />
+                {/* Search - styled nicely with Cmd+K hint */}
+                <Box position="relative" flex={1}>
+                  <Input
+                    ref={searchInputRef}
+                    placeholder="Search notes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    bg="white"
+                    border="none"
+                    borderRadius="xl"
+                    fontSize="md"
+                    boxShadow="sm"
+                    pl={4}
+                    pr={16}
+                    _placeholder={{ color: "gray.400" }}
+                    _hover={{ boxShadow: "md" }}
+                    _focus={{ boxShadow: "0 0 0 2px #818CF8", outline: "none" }}
+                  />
+                  <Box
+                    position="absolute"
+                    right={3}
+                    top="50%"
+                    transform="translateY(-50%)"
+                    bg="gray.100"
+                    px={2}
+                    py={0.5}
+                    borderRadius="md"
+                    fontSize="xs"
+                    color="gray.500"
+                    fontWeight="medium"
+                    pointerEvents="none"
+                  >
+                    {isMac ? "⌘K" : "Ctrl+K"}
+                  </Box>
+                </Box>
+
+                {/* Create button - compact */}
+                <Button
+                  bg="#6366F1"
+                  color="white"
+                  size="sm"
+                  onClick={handleCreateNote}
+                  borderRadius="lg"
+                  px={3}
+                  h={9}
+                  boxShadow="sm"
+                  fontWeight="medium"
+                  _hover={{ bg: "#4F46E5", boxShadow: "md", transform: "translateY(-1px)" }}
+                  transition="all 0.2s"
+                >
+                  <LuPlus size={16} /> New
+                </Button>
 
                 {/* Filter by owner */}
                 <Menu.Root positioning={{ placement: "bottom-start" }}>
@@ -336,11 +442,11 @@ export function Home() {
                       title={getFilterLabel()}
                       variant="ghost"
                       size="md"
-                      color={ownerFilter !== "all" ? "blue.500" : "gray.500"}
-                      bg={ownerFilter !== "all" ? "blue.50" : "white"}
+                      color={ownerFilter !== "all" ? "#6366F1" : "gray.500"}
+                      bg={ownerFilter !== "all" ? "#EEF2FF" : "white"}
                       boxShadow="sm"
                       borderRadius="xl"
-                      _hover={{ bg: ownerFilter !== "all" ? "blue.100" : "gray.100" }}
+                      _hover={{ bg: ownerFilter !== "all" ? "#E0E7FF" : "gray.100" }}
                     >
                       <LuFilter size={18} />
                     </IconButton>
@@ -350,44 +456,44 @@ export function Home() {
                       <Menu.Item
                         value="all"
                         onClick={() => setOwnerFilter("all")}
-                        bg={ownerFilter === "all" ? "blue.50" : undefined}
+                        bg={ownerFilter === "all" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <Text>All notes</Text>
-                          {ownerFilter === "all" && <Text color="blue.500">✓</Text>}
+                          {ownerFilter === "all" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                       <Menu.Item
                         value="me"
                         onClick={() => setOwnerFilter("me")}
-                        bg={ownerFilter === "me" ? "blue.50" : undefined}
+                        bg={ownerFilter === "me" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <Text>My notes</Text>
-                          {ownerFilter === "me" && <Text color="blue.500">✓</Text>}
+                          {ownerFilter === "me" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                       <Menu.Item
                         value="others"
                         onClick={() => setOwnerFilter("others")}
-                        bg={ownerFilter === "others" ? "blue.50" : undefined}
+                        bg={ownerFilter === "others" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <Text>Shared with me</Text>
-                          {ownerFilter === "others" && <Text color="blue.500">✓</Text>}
+                          {ownerFilter === "others" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                       <Menu.Item
                         value="locked"
                         onClick={() => setOwnerFilter("locked")}
-                        bg={ownerFilter === "locked" ? "blue.50" : undefined}
+                        bg={ownerFilter === "locked" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <HStack gap={2}>
                             <LuLock size={14} />
                             <Text>Locked</Text>
                           </HStack>
-                          {ownerFilter === "locked" && <Text color="blue.500">✓</Text>}
+                          {ownerFilter === "locked" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                     </Menu.Content>
@@ -402,11 +508,11 @@ export function Home() {
                       title={getSortLabel()}
                       variant="ghost"
                       size="md"
-                      color={sortOption !== "lastEdited" ? "blue.500" : "gray.500"}
-                      bg={sortOption !== "lastEdited" ? "blue.50" : "white"}
+                      color={sortOption !== "lastEdited" ? "#6366F1" : "gray.500"}
+                      bg={sortOption !== "lastEdited" ? "#EEF2FF" : "white"}
                       boxShadow="sm"
                       borderRadius="xl"
-                      _hover={{ bg: sortOption !== "lastEdited" ? "blue.100" : "gray.100" }}
+                      _hover={{ bg: sortOption !== "lastEdited" ? "#E0E7FF" : "gray.100" }}
                     >
                       <LuArrowUpDown size={18} />
                     </IconButton>
@@ -416,41 +522,41 @@ export function Home() {
                       <Menu.Item
                         value="lastEdited"
                         onClick={() => setSortOption("lastEdited")}
-                        bg={sortOption === "lastEdited" ? "blue.50" : undefined}
+                        bg={sortOption === "lastEdited" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <Text>Last edited</Text>
-                          {sortOption === "lastEdited" && <Text color="blue.500">✓</Text>}
+                          {sortOption === "lastEdited" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                       <Menu.Item
                         value="created"
                         onClick={() => setSortOption("created")}
-                        bg={sortOption === "created" ? "blue.50" : undefined}
+                        bg={sortOption === "created" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <Text>Last created</Text>
-                          {sortOption === "created" && <Text color="blue.500">✓</Text>}
+                          {sortOption === "created" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                       <Menu.Item
                         value="title"
                         onClick={() => setSortOption("title")}
-                        bg={sortOption === "title" ? "blue.50" : undefined}
+                        bg={sortOption === "title" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <Text>Title A-Z</Text>
-                          {sortOption === "title" && <Text color="blue.500">✓</Text>}
+                          {sortOption === "title" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                       <Menu.Item
                         value="author"
                         onClick={() => setSortOption("author")}
-                        bg={sortOption === "author" ? "blue.50" : undefined}
+                        bg={sortOption === "author" ? "#EEF2FF" : undefined}
                       >
                         <HStack justify="space-between" w="full">
                           <Text>Author A-Z</Text>
-                          {sortOption === "author" && <Text color="blue.500">✓</Text>}
+                          {sortOption === "author" && <Text color="#6366F1">✓</Text>}
                         </HStack>
                       </Menu.Item>
                     </Menu.Content>
@@ -465,11 +571,11 @@ export function Home() {
                         aria-label="List view"
                         variant="ghost"
                         size="md"
-                        color={viewType === "list" ? "blue.500" : "gray.500"}
-                        bg={viewType === "list" ? "blue.50" : "white"}
+                        color={viewType === "list" ? "#6366F1" : "gray.500"}
+                        bg={viewType === "list" ? "#EEF2FF" : "white"}
                         boxShadow="sm"
                         borderRadius="xl"
-                        _hover={{ bg: viewType === "list" ? "blue.100" : "gray.100" }}
+                        _hover={{ bg: viewType === "list" ? "#E0E7FF" : "gray.100" }}
                         onClick={() => setViewType("list")}
                       >
                         <LuList size={18} />
@@ -485,11 +591,11 @@ export function Home() {
                         aria-label="Grid view"
                         variant="ghost"
                         size="md"
-                        color={viewType === "grid" ? "blue.500" : "gray.500"}
-                        bg={viewType === "grid" ? "blue.50" : "white"}
+                        color={viewType === "grid" ? "#6366F1" : "gray.500"}
+                        bg={viewType === "grid" ? "#EEF2FF" : "white"}
                         boxShadow="sm"
                         borderRadius="xl"
-                        _hover={{ bg: viewType === "grid" ? "blue.100" : "gray.100" }}
+                        _hover={{ bg: viewType === "grid" ? "#E0E7FF" : "gray.100" }}
                         onClick={() => setViewType("grid")}
                       >
                         <LuLayoutGrid size={18} />
@@ -509,7 +615,7 @@ export function Home() {
                   {searchQuery && <Text fontSize="sm">Try a different search term</Text>}
                 </Box>
               ) : viewType === "list" ? (
-                <VStack gap={2} align="stretch">
+                <VStack gap={3} align="stretch">
                   {filteredAndSortedNotes.map((note) => {
                     const isOwner = isNoteOwner(note.id);
                     const displayTitle = getDisplayTitle(note.title, note.id);
@@ -519,35 +625,42 @@ export function Home() {
                         key={note.id}
                         p={3}
                         cursor="pointer"
-                        _hover={{ bg: "gray.100" }}
+                        bg="white"
+                        border="none"
+                        boxShadow="0 2px 8px rgba(0, 0, 0, 0.06)"
+                        borderRadius="xl"
+                        _hover={{ boxShadow: "0 4px 16px rgba(0, 0, 0, 0.1)", transform: "translateY(-1px)" }}
+                        transition="all 0.2s"
                         onClick={() => navigate(`/note/${note.id}`)}
                       >
                         <HStack justify="space-between">
-                          <Box minW={0} flex={1}>
+                          <Box minW={0} flex={1} opacity={note.isLocked ? 0.6 : 1}>
                             <HStack gap={2}>
                               {note.isLocked && (
-                                <Tooltip.Root openDelay={200} closeDelay={50}>
-                                  <Tooltip.Trigger asChild>
-                                    <Box color="orange.500" flexShrink={0} cursor="default">
-                                      <LuLock size={14} />
-                                    </Box>
-                                  </Tooltip.Trigger>
-                                  <Tooltip.Positioner>
-                                    <Tooltip.Content>
-                                      Locked - only owner can access
-                                    </Tooltip.Content>
-                                  </Tooltip.Positioner>
-                                </Tooltip.Root>
+                                <Box
+                                  color="gray.500"
+                                  bg="gray.100"
+                                  px={1.5}
+                                  py={0.5}
+                                  borderRadius="full"
+                                  fontSize="2xs"
+                                  fontWeight="bold"
+                                  textTransform="uppercase"
+                                  letterSpacing="wide"
+                                  flexShrink={0}
+                                >
+                                  Locked
+                                </Box>
                               )}
                               <TruncatedText
                                 fontWeight="medium"
-                                color={displayTitle === "Untitled" ? "gray.500" : undefined}
+                                color={displayTitle === "Untitled" ? "gray.400" : undefined}
                                 fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
                               >
                                 {displayTitle}
                               </TruncatedText>
                             </HStack>
-                            <HStack gap={1} fontSize="xs" color="gray.500" ml={note.isLocked ? 6 : 0}>
+                            <HStack gap={1} fontSize="xs" color="gray.500" ml={note.isLocked ? 0 : 0}>
                               <Text whiteSpace="nowrap">{formatDate(note.lastVisited)}</Text>
                               {note.ownerName && (
                                 <>
@@ -597,10 +710,7 @@ export function Home() {
                                     <>
                                       <Menu.Item
                                         value="lock"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          navigate(`/note/${note.id}?action=${note.isLocked ? 'unlock' : 'lock'}`);
-                                        }}
+                                        onClick={(e) => handleLockClick(note.id, e as unknown as React.MouseEvent)}
                                       >
                                         {note.isLocked ? <LuLockOpen /> : <LuLock />}
                                         {note.isLocked ? "Unlock note" : "Lock note"}
@@ -639,45 +749,44 @@ export function Home() {
                       <Card.Root
                         key={note.id}
                         cursor="pointer"
-                        _hover={{ bg: "gray.100", transform: "translateY(-2px)", boxShadow: "md" }}
+                        bg="white"
+                        border="none"
+                        boxShadow="0 4px 20px rgba(0, 0, 0, 0.08)"
+                        borderRadius="2xl"
+                        _hover={{ transform: "translateY(-4px)", boxShadow: "0 8px 30px rgba(0, 0, 0, 0.12)" }}
                         transition="all 0.2s"
                         onClick={() => navigate(`/note/${note.id}`)}
                         h="200px"
                         overflow="hidden"
                         position="relative"
                       >
-                        {/* Lock indicator */}
+                        {/* Lock indicator - quiet pill badge */}
                         {note.isLocked && (
-                          <Tooltip.Root openDelay={200} closeDelay={50}>
-                            <Tooltip.Trigger asChild>
-                              <Box
-                                position="absolute"
-                                top={2}
-                                right={2}
-                                color="orange.500"
-                                bg="orange.50"
-                                p={1}
-                                borderRadius="md"
-                                cursor="default"
-                              >
-                                <LuLock size={14} />
-                              </Box>
-                            </Tooltip.Trigger>
-                            <Tooltip.Positioner>
-                              <Tooltip.Content>
-                                This note is locked. Only the owner can view and edit.
-                              </Tooltip.Content>
-                            </Tooltip.Positioner>
-                          </Tooltip.Root>
+                          <Box
+                            position="absolute"
+                            top={3}
+                            right={3}
+                            color="gray.500"
+                            bg="gray.100"
+                            px={2}
+                            py={0.5}
+                            borderRadius="full"
+                            fontSize="2xs"
+                            fontWeight="bold"
+                            textTransform="uppercase"
+                            letterSpacing="wider"
+                          >
+                            Locked
+                          </Box>
                         )}
 
-                        {/* Content area */}
-                        <Box p={4} pb={14}>
+                        {/* Content area - reduced opacity when locked */}
+                        <Box p={4} pb={14} opacity={note.isLocked ? 0.5 : 1}>
                           {/* Title at top */}
                           <TruncatedText
                             fontWeight="semibold"
                             fontSize="md"
-                            color={displayTitle === "Untitled" ? "gray.500" : undefined}
+                            color={displayTitle === "Untitled" ? "gray.400" : undefined}
                             fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
                             mb={2}
                             lineHeight="1.4"
@@ -688,7 +797,9 @@ export function Home() {
                           {/* Content preview - 4 lines */}
                           <Text
                             fontSize="sm"
-                            color="gray.500"
+                            color={note.preview ? "gray.500" : "gray.400"}
+                            fontStyle={note.preview ? undefined : "italic"}
+                            lineHeight="1.6"
                             overflow="hidden"
                             css={{
                               display: "-webkit-box",
@@ -710,7 +821,7 @@ export function Home() {
                           pt={4}
                           pb={3}
                           bgGradient="to-t"
-                          gradientFrom="gray.100"
+                          gradientFrom="gray.50"
                           gradientTo="transparent"
                         >
                           <HStack justify="space-between" align="flex-end">
@@ -719,7 +830,15 @@ export function Home() {
                                 {formatDate(note.lastVisited)}
                               </Text>
                               {note.ownerName && (
-                                <Text fontSize="xs" color="gray.400" truncate maxW="150px">
+                                <Text
+                                  fontSize="2xs"
+                                  color="gray.400"
+                                  truncate
+                                  maxW="120px"
+                                  textTransform="uppercase"
+                                  letterSpacing="wide"
+                                  fontWeight="medium"
+                                >
                                   by {note.ownerName}
                                 </Text>
                               )}
@@ -764,10 +883,7 @@ export function Home() {
                                       <>
                                         <Menu.Item
                                           value="lock"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            navigate(`/note/${note.id}?action=${note.isLocked ? 'unlock' : 'lock'}`);
-                                          }}
+                                          onClick={(e) => handleLockClick(note.id, e as unknown as React.MouseEvent)}
                                         >
                                           {note.isLocked ? <LuLockOpen /> : <LuLock />}
                                           {note.isLocked ? "Unlock note" : "Lock note"}
@@ -863,6 +979,54 @@ export function Home() {
               </VStack>
             </Box>
           </VStack>
+        }
+      />
+
+      {/* Lock/Unlock Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={lockDialogOpen}
+        onClose={() => {
+          if (!isLocking) {
+            setLockDialogOpen(false);
+            setPendingActionNoteId(null);
+          }
+        }}
+        onConfirm={handleLockConfirm}
+        title={pendingNote?.isLocked ? "Unlock Note" : "Lock Note"}
+        variant="warning"
+        confirmText={pendingNote?.isLocked ? "Unlock" : "Lock"}
+        cancelText="Cancel"
+        isLoading={isLocking}
+        description={
+          pendingNote?.isLocked ? (
+            <VStack gap={2}>
+              <Text fontSize="sm" color="gray.600" textAlign="center">
+                Make "{pendingNote?.title || "Untitled"}" accessible again?
+              </Text>
+              <Text fontSize="xs" color="gray.500" textAlign="center">
+                Anyone with the link will be able to view and edit.
+              </Text>
+            </VStack>
+          ) : (
+            <VStack gap={2}>
+              <Text fontSize="sm" color="gray.600" textAlign="center">
+                Restrict access to "{pendingNote?.title || "Untitled"}"?
+              </Text>
+              <Box bg="orange.50" p={3} borderRadius="md" w="full">
+                <VStack gap={1} align="start">
+                  <Text fontSize="xs" color="orange.700">
+                    • Only you will be able to view and edit
+                  </Text>
+                  <Text fontSize="xs" color="orange.700">
+                    • Others will see "This note is locked"
+                  </Text>
+                  <Text fontSize="xs" color="orange.700">
+                    • You can unlock anytime
+                  </Text>
+                </VStack>
+              </Box>
+            </VStack>
+          )
         }
       />
     </Box>

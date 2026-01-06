@@ -146,8 +146,8 @@ export function Toolbar({ editor }: ToolbarProps) {
           <Menu.Trigger asChild>
             <IconButton
               aria-label="Text formatting"
-              variant={isActiveButton("bold") || isActiveButton("italic") || isActiveButton("strike") ? "solid" : "ghost"}
-              colorPalette={isActiveButton("bold") || isActiveButton("italic") || isActiveButton("strike") ? "blue" : "gray"}
+              variant="ghost"
+              bg={isActiveButton("bold") || isActiveButton("italic") || isActiveButton("strike") ? "#EEF2FF" : undefined} color={isActiveButton("bold") || isActiveButton("italic") || isActiveButton("strike") ? "#4F46E5" : "gray.600"}
               size="sm"
             >
               <Text fontSize="xs" fontWeight="semibold">Aa</Text>
@@ -158,40 +158,40 @@ export function Toolbar({ editor }: ToolbarProps) {
               <Menu.Item
                 value="bold"
                 onClick={() => editor.chain().focus().toggleBold().run()}
-                bg={isActiveItem("bold") ? "blue.50" : undefined}
+                bg={isActiveItem("bold") ? "#EEF2FF" : undefined}
               >
                 <HStack gap={2} justify="space-between" w="full">
                   <HStack gap={2}>
                     <Text fontWeight="black">B</Text>
                     <Text fontSize="sm">Bold</Text>
                   </HStack>
-                  {isActiveItem("bold") && <Text color="blue.500">✓</Text>}
+                  {isActiveItem("bold") && <Text color="#6366F1">✓</Text>}
                 </HStack>
               </Menu.Item>
               <Menu.Item
                 value="italic"
                 onClick={() => editor.chain().focus().toggleItalic().run()}
-                bg={isActiveItem("italic") ? "blue.50" : undefined}
+                bg={isActiveItem("italic") ? "#EEF2FF" : undefined}
               >
                 <HStack gap={2} justify="space-between" w="full">
                   <HStack gap={2}>
                     <LuItalic />
                     <Text fontSize="sm">Italic</Text>
                   </HStack>
-                  {isActiveItem("italic") && <Text color="blue.500">✓</Text>}
+                  {isActiveItem("italic") && <Text color="#6366F1">✓</Text>}
                 </HStack>
               </Menu.Item>
               <Menu.Item
                 value="strikethrough"
                 onClick={() => editor.chain().focus().toggleStrike().run()}
-                bg={isActiveItem("strike") ? "blue.50" : undefined}
+                bg={isActiveItem("strike") ? "#EEF2FF" : undefined}
               >
                 <HStack gap={2} justify="space-between" w="full">
                   <HStack gap={2}>
                     <LuStrikethrough />
                     <Text fontSize="sm">Strikethrough</Text>
                   </HStack>
-                  {isActiveItem("strike") && <Text color="blue.500">✓</Text>}
+                  {isActiveItem("strike") && <Text color="#6366F1">✓</Text>}
                 </HStack>
               </Menu.Item>
             </Menu.Content>
@@ -203,8 +203,8 @@ export function Toolbar({ editor }: ToolbarProps) {
           <Menu.Trigger asChild>
             <IconButton
               aria-label="Headings"
-              variant={isActiveButton("heading", { level: 1 }) || isActiveButton("heading", { level: 2 }) ? "solid" : "ghost"}
-              colorPalette={isActiveButton("heading", { level: 1 }) || isActiveButton("heading", { level: 2 }) ? "blue" : "gray"}
+              variant="ghost"
+              bg={isActiveButton("heading", { level: 1 }) || isActiveButton("heading", { level: 2 }) ? "#EEF2FF" : undefined} color={isActiveButton("heading", { level: 1 }) || isActiveButton("heading", { level: 2 }) ? "#4F46E5" : "gray.600"}
               size="sm"
             >
               <Text fontSize="xs" fontWeight="bold">H</Text>
@@ -215,27 +215,27 @@ export function Toolbar({ editor }: ToolbarProps) {
               <Menu.Item
                 value="h1"
                 onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                bg={isActiveItem("heading", { level: 1 }) ? "blue.50" : undefined}
+                bg={isActiveItem("heading", { level: 1 }) ? "#EEF2FF" : undefined}
               >
                 <HStack gap={2} justify="space-between" w="full">
                   <HStack gap={2}>
                     <LuHeading1 />
                     <Text fontSize="sm">Heading 1</Text>
                   </HStack>
-                  {isActiveItem("heading", { level: 1 }) && <Text color="blue.500">✓</Text>}
+                  {isActiveItem("heading", { level: 1 }) && <Text color="#6366F1">✓</Text>}
                 </HStack>
               </Menu.Item>
               <Menu.Item
                 value="h2"
                 onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                bg={isActiveItem("heading", { level: 2 }) ? "blue.50" : undefined}
+                bg={isActiveItem("heading", { level: 2 }) ? "#EEF2FF" : undefined}
               >
                 <HStack gap={2} justify="space-between" w="full">
                   <HStack gap={2}>
                     <LuHeading2 />
                     <Text fontSize="sm">Heading 2</Text>
                   </HStack>
-                  {isActiveItem("heading", { level: 2 }) && <Text color="blue.500">✓</Text>}
+                  {isActiveItem("heading", { level: 2 }) && <Text color="#6366F1">✓</Text>}
                 </HStack>
               </Menu.Item>
             </Menu.Content>
@@ -247,8 +247,8 @@ export function Toolbar({ editor }: ToolbarProps) {
           <Menu.Trigger asChild>
             <IconButton
               aria-label="Lists"
-              variant={isActiveButton("bulletList") || isActiveButton("orderedList") ? "solid" : "ghost"}
-              colorPalette={isActiveButton("bulletList") || isActiveButton("orderedList") ? "blue" : "gray"}
+              variant="ghost"
+              bg={isActiveButton("bulletList") || isActiveButton("orderedList") ? "#EEF2FF" : undefined} color={isActiveButton("bulletList") || isActiveButton("orderedList") ? "#4F46E5" : "gray.600"}
               size="sm"
             >
               <LuList size={14} />
@@ -259,27 +259,27 @@ export function Toolbar({ editor }: ToolbarProps) {
               <Menu.Item
                 value="bullet"
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
-                bg={isActiveItem("bulletList") ? "blue.50" : undefined}
+                bg={isActiveItem("bulletList") ? "#EEF2FF" : undefined}
               >
                 <HStack gap={2} justify="space-between" w="full">
                   <HStack gap={2}>
                     <LuList />
                     <Text fontSize="sm">Bullet List</Text>
                   </HStack>
-                  {isActiveItem("bulletList") && <Text color="blue.500">✓</Text>}
+                  {isActiveItem("bulletList") && <Text color="#6366F1">✓</Text>}
                 </HStack>
               </Menu.Item>
               <Menu.Item
                 value="numbered"
                 onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                bg={isActiveItem("orderedList") ? "blue.50" : undefined}
+                bg={isActiveItem("orderedList") ? "#EEF2FF" : undefined}
               >
                 <HStack gap={2} justify="space-between" w="full">
                   <HStack gap={2}>
                     <LuListOrdered />
                     <Text fontSize="sm">Numbered List</Text>
                   </HStack>
-                  {isActiveItem("orderedList") && <Text color="blue.500">✓</Text>}
+                  {isActiveItem("orderedList") && <Text color="#6366F1">✓</Text>}
                 </HStack>
               </Menu.Item>
             </Menu.Content>
@@ -329,7 +329,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                         editor.chain().focus().unsetColor().run();
                       }
                     }}
-                    bg={isSelected ? "blue.50" : undefined}
+                    bg={isSelected ? "#EEF2FF" : undefined}
                   >
                     <HStack gap={2} justify="space-between" w="full">
                       <HStack gap={2}>
@@ -343,7 +343,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                         />
                         <Text fontSize="sm">{c.name}</Text>
                       </HStack>
-                      {isSelected && <Text color="blue.500">✓</Text>}
+                      {isSelected && <Text color="#6366F1">✓</Text>}
                     </HStack>
                   </Menu.Item>
                 );
@@ -357,8 +357,10 @@ export function Toolbar({ editor }: ToolbarProps) {
           <Menu.Trigger asChild>
             <IconButton
               aria-label="Highlight"
-              variant={currentHighlight ? "solid" : "ghost"}
-              colorPalette={currentHighlight ? "blue" : "gray"}
+              variant="ghost"
+              bg={currentHighlight ? "#EEF2FF" : undefined}
+              color={currentHighlight ? "#4F46E5" : "gray.600"}
+              _hover={{ bg: currentHighlight ? "#E0E7FF" : "gray.100" }}
               size="sm"
             >
               <Box position="relative">
@@ -397,7 +399,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                         editor.chain().focus().unsetHighlight().run();
                       }
                     }}
-                    bg={isSelected ? "blue.50" : undefined}
+                    bg={isSelected ? "#EEF2FF" : undefined}
                   >
                     <HStack gap={2} justify="space-between" w="full">
                       <HStack gap={2}>
@@ -411,7 +413,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                         />
                         <Text fontSize="sm">{c.name}</Text>
                       </HStack>
-                      {isSelected && <Text color="blue.500">✓</Text>}
+                      {isSelected && <Text color="#6366F1">✓</Text>}
                     </HStack>
                   </Menu.Item>
                 );
@@ -466,8 +468,8 @@ export function Toolbar({ editor }: ToolbarProps) {
         <IconButton
           aria-label="Bold"
           onClick={() => editor.chain().focus().toggleBold().run()}
-          variant={isActiveButton("bold") ? "solid" : "ghost"}
-          colorPalette={isActiveButton("bold") ? "blue" : "gray"}
+          variant="ghost"
+          bg={isActiveButton("bold") ? "#EEF2FF" : undefined} color={isActiveButton("bold") ? "#4F46E5" : "gray.600"}
           size="sm"
         >
           <Text fontWeight="black" fontSize="md">B</Text>
@@ -478,8 +480,8 @@ export function Toolbar({ editor }: ToolbarProps) {
         <IconButton
           aria-label="Italic"
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          variant={isActiveButton("italic") ? "solid" : "ghost"}
-          colorPalette={isActiveButton("italic") ? "blue" : "gray"}
+          variant="ghost"
+          bg={isActiveButton("italic") ? "#EEF2FF" : undefined} color={isActiveButton("italic") ? "#4F46E5" : "gray.600"}
           size="sm"
         >
           <LuItalic />
@@ -490,8 +492,8 @@ export function Toolbar({ editor }: ToolbarProps) {
         <IconButton
           aria-label="Strikethrough"
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          variant={isActiveButton("strike") ? "solid" : "ghost"}
-          colorPalette={isActiveButton("strike") ? "blue" : "gray"}
+          variant="ghost"
+          bg={isActiveButton("strike") ? "#EEF2FF" : undefined} color={isActiveButton("strike") ? "#4F46E5" : "gray.600"}
           size="sm"
         >
           <LuStrikethrough />
@@ -505,8 +507,8 @@ export function Toolbar({ editor }: ToolbarProps) {
         <IconButton
           aria-label="Heading 1"
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          variant={isActiveButton("heading", { level: 1 }) ? "solid" : "ghost"}
-          colorPalette={isActiveButton("heading", { level: 1 }) ? "blue" : "gray"}
+          variant="ghost"
+          bg={isActiveButton("heading", { level: 1 }) ? "#EEF2FF" : undefined} color={isActiveButton("heading", { level: 1 }) ? "#4F46E5" : "gray.600"}
           size="sm"
         >
           <LuHeading1 />
@@ -517,8 +519,8 @@ export function Toolbar({ editor }: ToolbarProps) {
         <IconButton
           aria-label="Heading 2"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          variant={isActiveButton("heading", { level: 2 }) ? "solid" : "ghost"}
-          colorPalette={isActiveButton("heading", { level: 2 }) ? "blue" : "gray"}
+          variant="ghost"
+          bg={isActiveButton("heading", { level: 2 }) ? "#EEF2FF" : undefined} color={isActiveButton("heading", { level: 2 }) ? "#4F46E5" : "gray.600"}
           size="sm"
         >
           <LuHeading2 />
@@ -532,8 +534,8 @@ export function Toolbar({ editor }: ToolbarProps) {
         <IconButton
           aria-label="Bullet List"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          variant={isActiveButton("bulletList") ? "solid" : "ghost"}
-          colorPalette={isActiveButton("bulletList") ? "blue" : "gray"}
+          variant="ghost"
+          bg={isActiveButton("bulletList") ? "#EEF2FF" : undefined} color={isActiveButton("bulletList") ? "#4F46E5" : "gray.600"}
           size="sm"
         >
           <LuList />
@@ -544,8 +546,8 @@ export function Toolbar({ editor }: ToolbarProps) {
         <IconButton
           aria-label="Numbered List"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          variant={isActiveButton("orderedList") ? "solid" : "ghost"}
-          colorPalette={isActiveButton("orderedList") ? "blue" : "gray"}
+          variant="ghost"
+          bg={isActiveButton("orderedList") ? "#EEF2FF" : undefined} color={isActiveButton("orderedList") ? "#4F46E5" : "gray.600"}
           size="sm"
         >
           <LuListOrdered />
@@ -601,7 +603,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                       editor.chain().focus().unsetColor().run();
                     }
                   }}
-                  bg={isSelected ? "blue.50" : undefined}
+                  bg={isSelected ? "#EEF2FF" : undefined}
                 >
                   <HStack gap={2} justify="space-between" w="full">
                     <HStack gap={2}>
@@ -615,7 +617,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                       />
                       <Text fontSize="sm">{c.name}</Text>
                     </HStack>
-                    {isSelected && <Text color="blue.500">✓</Text>}
+                    {isSelected && <Text color="#6366F1">✓</Text>}
                   </HStack>
                 </Menu.Item>
               );
@@ -631,8 +633,10 @@ export function Toolbar({ editor }: ToolbarProps) {
             <TooltipButton label="Highlight">
               <IconButton
                 aria-label="Highlight"
-                variant={currentHighlight ? "solid" : "ghost"}
-                colorPalette={currentHighlight ? "blue" : "gray"}
+                variant="ghost"
+                bg={currentHighlight ? "#EEF2FF" : undefined}
+                color={currentHighlight ? "#4F46E5" : "gray.600"}
+                _hover={{ bg: currentHighlight ? "#E0E7FF" : "gray.100" }}
                 size="sm"
               >
                 <Box position="relative">
@@ -673,7 +677,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                       editor.chain().focus().unsetHighlight().run();
                     }
                   }}
-                  bg={isSelected ? "blue.50" : undefined}
+                  bg={isSelected ? "#EEF2FF" : undefined}
                 >
                   <HStack gap={2} justify="space-between" w="full">
                     <HStack gap={2}>
@@ -687,7 +691,7 @@ export function Toolbar({ editor }: ToolbarProps) {
                       />
                       <Text fontSize="sm">{c.name}</Text>
                     </HStack>
-                    {isSelected && <Text color="blue.500">✓</Text>}
+                    {isSelected && <Text color="#6366F1">✓</Text>}
                   </HStack>
                 </Menu.Item>
               );
@@ -695,8 +699,6 @@ export function Toolbar({ editor }: ToolbarProps) {
           </Menu.Content>
         </Menu.Positioner>
       </Menu.Root>
-
-      <Separator />
 
       <Separator />
 

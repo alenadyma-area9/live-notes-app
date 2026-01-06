@@ -13,9 +13,10 @@ interface CollaboratorsListProps {
   provider: YPartyKitProvider;
   currentUser: { name: string; color: string };
   maxDisplay?: number;
+  showCurrentUser?: boolean;
 }
 
-export function CollaboratorsList({ provider, currentUser, maxDisplay = 4 }: CollaboratorsListProps) {
+export function CollaboratorsList({ provider, currentUser, maxDisplay = 4, showCurrentUser = true }: CollaboratorsListProps) {
   const { userId } = useAppStore();
   const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(new Map());
 
@@ -53,37 +54,47 @@ export function CollaboratorsList({ provider, currentUser, maxDisplay = 4 }: Col
     };
   }, [provider, userId]);
 
-  const allUsers = [
-    { id: "me", ...currentUser, isMe: true },
-    ...Array.from(collaborators.entries()).map(([id, user]) => ({
-      id,
-      ...user,
-      isMe: false,
-    })),
-  ];
+  const otherUsers = Array.from(collaborators.entries()).map(([id, user]) => ({
+    id,
+    ...user,
+    isMe: false,
+  }));
+
+  const allUsers = showCurrentUser
+    ? [{ id: "me", ...currentUser, isMe: true }, ...otherUsers]
+    : otherUsers;
+
+  // If not showing current user and no other users, return null
+  if (!showCurrentUser && otherUsers.length === 0) {
+    return null;
+  }
 
   const visibleUsers = allUsers.slice(0, maxDisplay);
   const hiddenCount = allUsers.length - maxDisplay;
   const hiddenUsers = allUsers.slice(maxDisplay);
 
+  // Avatar size: smaller when not showing current user (others only)
+  const avatarSize = showCurrentUser ? 8 : 7;
+
   return (
-    <HStack gap={-2}>
-      {visibleUsers.map((user) => (
+    <HStack gap={0}>
+      {visibleUsers.map((user, index) => (
         <Tooltip.Root key={user.id} openDelay={200} closeDelay={100}>
           <Tooltip.Trigger asChild>
             <Box
-              w={8}
-              h={8}
+              w={avatarSize}
+              h={avatarSize}
               borderRadius="full"
               bg={user.color}
               display="flex"
               alignItems="center"
               justifyContent="center"
               border="2px solid white"
-              boxShadow={user.isMe ? "0 0 0 3px " + user.color : "sm"}
+              boxShadow={user.isMe ? "0 0 0 2px " + user.color : "sm"}
               cursor="default"
               position="relative"
-              zIndex={user.isMe ? 10 : 1}
+              zIndex={visibleUsers.length - index}
+              ml={index > 0 ? -2 : 0}
               _hover={{ zIndex: 20 }}
             >
               <Text fontSize="xs" fontWeight="bold" color="white">
@@ -103,8 +114,8 @@ export function CollaboratorsList({ provider, currentUser, maxDisplay = 4 }: Col
         <Tooltip.Root openDelay={200} closeDelay={100}>
           <Tooltip.Trigger asChild>
             <Box
-              w={8}
-              h={8}
+              w={avatarSize}
+              h={avatarSize}
               borderRadius="full"
               bg="gray.400"
               display="flex"
@@ -113,7 +124,8 @@ export function CollaboratorsList({ provider, currentUser, maxDisplay = 4 }: Col
               border="2px solid white"
               boxShadow="sm"
               cursor="default"
-              ml={1}
+              ml={-2}
+              zIndex={0}
             >
               <Text fontSize="xs" fontWeight="bold" color="white">
                 +{hiddenCount}

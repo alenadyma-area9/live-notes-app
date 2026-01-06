@@ -534,7 +534,7 @@ function DiffBlockView({ block, listIndex }: { block: DiffBlock; listIndex?: num
     switch (block.status) {
       case "added": return "green.400";
       case "removed": return "red.400";
-      case "modified": return "blue.400";
+      case "modified": return "#818CF8";
       case "style-only": return "orange.400";
       default: return "transparent";
     }
@@ -618,7 +618,7 @@ export function InlineDiffView({ oldDoc, newDoc, oldVersion, newVersion }: Inlin
         <HStack gap={3} fontSize="sm">
           {additions > 0 && <Text color="green.600" fontWeight="medium">+{additions}</Text>}
           {removals > 0 && <Text color="red.600" fontWeight="medium">-{removals}</Text>}
-          {modifications > 0 && <Text color="blue.600" fontWeight="medium">{modifications} text</Text>}
+          {modifications > 0 && <Text color="#4F46E5" fontWeight="medium">{modifications} text</Text>}
           {styleChanges > 0 && <Text color="orange.600" fontWeight="medium">{styleChanges} style</Text>}
         </HStack>
       </HStack>
@@ -662,7 +662,7 @@ export function InlineDiffView({ oldDoc, newDoc, oldVersion, newVersion }: Inlin
           </Box>
         </HStack>
         <HStack>
-          <Box borderLeft="3px solid" borderLeftColor="blue.400" pl={2}>
+          <Box borderLeft="3px solid" borderLeftColor="#818CF8" pl={2}>
             <Text>text changed</Text>
           </Box>
         </HStack>
