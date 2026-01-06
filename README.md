@@ -2,17 +2,20 @@
 
 Real-time collaborative note-taking app. Create, edit, and share notes instantly with anyone.
 
-**Live Demo:** https://live-notes-qjvxfw7el-alenas-projects-7c7d7ea6.vercel.app
+**Live Demo:** https://live-notes-app-sage.vercel.app/
 
 ## Features
 
 - ✅ **Real-time collaboration** - Multiple users edit simultaneously
 - ✅ **No sign-up required** - Share a link, start collaborating
-- ✅ **Rich text editing** - Bold, italic, headings, lists
+- ✅ **Rich text editing** - Bold, italic, headings, lists, colors, highlights
 - ✅ **Live cursors** - See where others are typing
 - ✅ **Online presence** - See who's currently editing
 - ✅ **Note titles** - Name your notes, synced across collaborators
 - ✅ **Recent notes** - Quick access to your recently visited notes
+- ✅ **Version history** - View and restore previous versions
+- ✅ **Duplicate notes** - Create copies of existing notes
+- ✅ **Clickable links** - Auto-detect URLs with preview bubble
 
 ## Tech Stack
 
@@ -111,9 +114,9 @@ party/              # PartyKit server
 ## Future Improvements
 
 - [ ] Connection status indicator (online/offline)
-- [ ] Toolbar tooltips
-- [ ] Empty state placeholder
-- [ ] Mobile responsive polish
+- [ ] Image paste/upload improvements
+- [ ] Export to PDF/Markdown
+- [ ] Note folders/organization
 
 ## License
 
