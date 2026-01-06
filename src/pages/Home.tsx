@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -14,10 +14,11 @@ import {
   Input,
   Tooltip,
 } from "@chakra-ui/react";
-import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid, LuCopy } from "react-icons/lu";
+import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid, LuCopy, LuLock, LuLockOpen } from "react-icons/lu";
 import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
 import { Header } from "../components/Header";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
 
@@ -64,7 +65,7 @@ function TruncatedText({
   );
 }
 
-type OwnerFilter = "all" | "me" | "others";
+type OwnerFilter = "all" | "me" | "others" | "locked";
 type SortOption = "lastEdited" | "created" | "title" | "author";
 
 export function Home() {
@@ -76,6 +77,12 @@ export function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
   const [sortOption, setSortOption] = useState<SortOption>("lastEdited");
+
+  // Dialog states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [pendingActionNoteId, setPendingActionNoteId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const showToast = (message: string, type: "success" | "info" = "success") => {
     setToast({ message, type });
@@ -100,45 +107,83 @@ export function Home() {
     removeRecentNote(noteId);
   };
 
-  const handleDeleteNote = async (noteId: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Are you sure you want to delete this note? This cannot be undone.")) {
-      try {
-        const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
-        await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${noteId}/delete`, {
-          method: "POST",
-        });
-        removeRecentNote(noteId);
-        showToast("Note deleted", "info");
-      } catch (err) {
-        console.error("Failed to delete note:", err);
-        showToast("Failed to delete note", "info");
-      }
-    }
+    setPendingActionNoteId(noteId);
+    setDeleteDialogOpen(true);
   };
 
-  const handleDuplicate = (noteId: string, e: React.MouseEvent) => {
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!pendingActionNoteId) return;
+
+    setIsDeleting(true);
+    try {
+      const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
+      await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/delete`, {
+        method: "POST",
+      });
+      removeRecentNote(pendingActionNoteId);
+      showToast("Note deleted", "info");
+    } catch (err) {
+      console.error("Failed to delete note:", err);
+      showToast("Failed to delete note", "info");
+    }
+    setIsDeleting(false);
+    setDeleteDialogOpen(false);
+    setPendingActionNoteId(null);
+  }, [pendingActionNoteId, removeRecentNote]);
+
+  const handleDuplicateClick = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const note = recentNotes.find(n => n.id === noteId);
+    setPendingActionNoteId(noteId);
+    setDuplicateDialogOpen(true);
+  };
+
+  const [isDuplicating, setIsDuplicating] = useState(false);
+
+  const handleDuplicateConfirm = useCallback(async () => {
+    if (!pendingActionNoteId) return;
+
+    const note = recentNotes.find(n => n.id === pendingActionNoteId);
     const noteTitle = note?.title || "Untitled";
     const newTitle = `(copy) ${noteTitle}`;
+    const newNoteId = generateNoteId();
 
-    const confirmed = confirm(
-      `Duplicate "${noteTitle}"?\n\n` +
-      `New title: "${newTitle}"\n\n` +
-      `Will copy:\n` +
-      `• Title\n` +
-      `• All content\n\n` +
-      `Will NOT copy:\n` +
-      `• Version history\n` +
-      `• Ownership (you'll be the owner)`
-    );
+    setIsDuplicating(true);
 
-    if (confirmed) {
-      // Navigate to note with duplicate action - the editor will handle it
-      navigate(`/note/${noteId}?action=duplicate`);
+    try {
+      // Fetch the source note's state from server
+      const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
+      const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/state`);
+
+      if (res.ok) {
+        const data = await res.json();
+
+        // Store in sessionStorage for the new note to pick up when opened
+        sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+          state: data.state,
+          title: newTitle
+        }));
+
+        // Add to recent notes immediately with the new title
+        addRecentNote(newNoteId, newTitle, true);
+
+        showToast(`Created "${newTitle}"`, "success");
+      } else {
+        showToast("Failed to duplicate note", "info");
+      }
+    } catch (err) {
+      console.error("Failed to duplicate:", err);
+      showToast("Failed to duplicate note", "info");
     }
-  };
+
+    setIsDuplicating(false);
+    setDuplicateDialogOpen(false);
+    setPendingActionNoteId(null);
+  }, [pendingActionNoteId, recentNotes, addRecentNote]);
+
+  // Get pending note info for dialogs
+  const pendingNote = pendingActionNoteId ? recentNotes.find(n => n.id === pendingActionNoteId) : null;
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString(undefined, {
@@ -175,10 +220,17 @@ export function Home() {
       notes = notes.filter(note => note.ownerId === userId);
     } else if (ownerFilter === "others") {
       notes = notes.filter(note => note.ownerId && note.ownerId !== userId);
+    } else if (ownerFilter === "locked") {
+      notes = notes.filter(note => note.isLocked);
     }
 
-    // Sort
+    // Sort - locked notes first when not filtering by locked
     notes.sort((a, b) => {
+      // Locked notes first (only if not already filtering by locked)
+      if (ownerFilter !== "locked") {
+        if (a.isLocked && !b.isLocked) return -1;
+        if (!a.isLocked && b.isLocked) return 1;
+      }
       switch (sortOption) {
         case "lastEdited":
           return b.lastVisited - a.lastVisited;
@@ -204,6 +256,7 @@ export function Home() {
     switch (ownerFilter) {
       case "me": return "My notes";
       case "others": return "Shared with me";
+      case "locked": return "Locked notes";
       default: return "All notes";
     }
   };
@@ -322,6 +375,19 @@ export function Home() {
                         <HStack justify="space-between" w="full">
                           <Text>Shared with me</Text>
                           {ownerFilter === "others" && <Text color="blue.500">✓</Text>}
+                        </HStack>
+                      </Menu.Item>
+                      <Menu.Item
+                        value="locked"
+                        onClick={() => setOwnerFilter("locked")}
+                        bg={ownerFilter === "locked" ? "blue.50" : undefined}
+                      >
+                        <HStack justify="space-between" w="full">
+                          <HStack gap={2}>
+                            <LuLock size={14} />
+                            <Text>Locked</Text>
+                          </HStack>
+                          {ownerFilter === "locked" && <Text color="blue.500">✓</Text>}
                         </HStack>
                       </Menu.Item>
                     </Menu.Content>
@@ -458,14 +524,30 @@ export function Home() {
                       >
                         <HStack justify="space-between">
                           <Box minW={0} flex={1}>
-                            <TruncatedText
-                              fontWeight="medium"
-                              color={displayTitle === "Untitled" ? "gray.500" : undefined}
-                              fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
-                            >
-                              {displayTitle}
-                            </TruncatedText>
-                            <HStack gap={1} fontSize="xs" color="gray.500">
+                            <HStack gap={2}>
+                              {note.isLocked && (
+                                <Tooltip.Root openDelay={200} closeDelay={50}>
+                                  <Tooltip.Trigger asChild>
+                                    <Box color="orange.500" flexShrink={0} cursor="default">
+                                      <LuLock size={14} />
+                                    </Box>
+                                  </Tooltip.Trigger>
+                                  <Tooltip.Positioner>
+                                    <Tooltip.Content>
+                                      Locked - only owner can access
+                                    </Tooltip.Content>
+                                  </Tooltip.Positioner>
+                                </Tooltip.Root>
+                              )}
+                              <TruncatedText
+                                fontWeight="medium"
+                                color={displayTitle === "Untitled" ? "gray.500" : undefined}
+                                fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
+                              >
+                                {displayTitle}
+                              </TruncatedText>
+                            </HStack>
+                            <HStack gap={1} fontSize="xs" color="gray.500" ml={note.isLocked ? 6 : 0}>
                               <Text whiteSpace="nowrap">{formatDate(note.lastVisited)}</Text>
                               {note.ownerName && (
                                 <>
@@ -499,7 +581,7 @@ export function Home() {
                                   </Menu.Item>
                                   <Menu.Item
                                     value="duplicate"
-                                    onClick={(e) => handleDuplicate(note.id, e as unknown as React.MouseEvent)}
+                                    onClick={(e) => handleDuplicateClick(note.id, e as unknown as React.MouseEvent)}
                                   >
                                     <LuCopy />
                                     Duplicate
@@ -512,14 +594,26 @@ export function Home() {
                                     Remove from my list
                                   </Menu.Item>
                                   {isOwner && (
-                                    <Menu.Item
-                                      value="delete"
-                                      color="red.500"
-                                      onClick={(e) => handleDeleteNote(note.id, e as unknown as React.MouseEvent)}
-                                    >
-                                      <LuTrash2 />
-                                      Delete note
-                                    </Menu.Item>
+                                    <>
+                                      <Menu.Item
+                                        value="lock"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/note/${note.id}?action=${note.isLocked ? 'unlock' : 'lock'}`);
+                                        }}
+                                      >
+                                        {note.isLocked ? <LuLockOpen /> : <LuLock />}
+                                        {note.isLocked ? "Unlock note" : "Lock note"}
+                                      </Menu.Item>
+                                      <Menu.Item
+                                        value="delete"
+                                        color="red.500"
+                                        onClick={(e) => handleDeleteClick(note.id, e as unknown as React.MouseEvent)}
+                                      >
+                                        <LuTrash2 />
+                                        Delete note
+                                      </Menu.Item>
+                                    </>
                                   )}
                                 </Menu.Content>
                               </Menu.Positioner>
@@ -552,6 +646,31 @@ export function Home() {
                         overflow="hidden"
                         position="relative"
                       >
+                        {/* Lock indicator */}
+                        {note.isLocked && (
+                          <Tooltip.Root openDelay={200} closeDelay={50}>
+                            <Tooltip.Trigger asChild>
+                              <Box
+                                position="absolute"
+                                top={2}
+                                right={2}
+                                color="orange.500"
+                                bg="orange.50"
+                                p={1}
+                                borderRadius="md"
+                                cursor="default"
+                              >
+                                <LuLock size={14} />
+                              </Box>
+                            </Tooltip.Trigger>
+                            <Tooltip.Positioner>
+                              <Tooltip.Content>
+                                This note is locked. Only the owner can view and edit.
+                              </Tooltip.Content>
+                            </Tooltip.Positioner>
+                          </Tooltip.Root>
+                        )}
+
                         {/* Content area */}
                         <Box p={4} pb={14}>
                           {/* Title at top */}
@@ -629,7 +748,7 @@ export function Home() {
                                     </Menu.Item>
                                     <Menu.Item
                                       value="duplicate"
-                                      onClick={(e) => handleDuplicate(note.id, e as unknown as React.MouseEvent)}
+                                      onClick={(e) => handleDuplicateClick(note.id, e as unknown as React.MouseEvent)}
                                     >
                                       <LuCopy />
                                       Duplicate
@@ -642,14 +761,26 @@ export function Home() {
                                       Remove from my list
                                     </Menu.Item>
                                     {isOwner && (
-                                      <Menu.Item
-                                        value="delete"
-                                        color="red.500"
-                                        onClick={(e) => handleDeleteNote(note.id, e as unknown as React.MouseEvent)}
-                                      >
-                                        <LuTrash2 />
-                                        Delete note
-                                      </Menu.Item>
+                                      <>
+                                        <Menu.Item
+                                          value="lock"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate(`/note/${note.id}?action=${note.isLocked ? 'unlock' : 'lock'}`);
+                                          }}
+                                        >
+                                          {note.isLocked ? <LuLockOpen /> : <LuLock />}
+                                          {note.isLocked ? "Unlock note" : "Lock note"}
+                                        </Menu.Item>
+                                        <Menu.Item
+                                          value="delete"
+                                          color="red.500"
+                                          onClick={(e) => handleDeleteClick(note.id, e as unknown as React.MouseEvent)}
+                                        >
+                                          <LuTrash2 />
+                                          Delete note
+                                        </Menu.Item>
+                                      </>
                                     )}
                                   </Menu.Content>
                                 </Menu.Positioner>
@@ -673,6 +804,67 @@ export function Home() {
           )}
         </VStack>
       </Container>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setPendingActionNoteId(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Note"
+        variant="danger"
+        confirmText="Delete"
+        cancelText="Cancel"
+        isLoading={isDeleting}
+        description={
+          <VStack gap={2}>
+            <Text fontSize="sm" color="gray.600" textAlign="center">
+              Are you sure you want to delete "{pendingNote?.title || "Untitled"}"?
+            </Text>
+            <Text fontSize="xs" color="red.500" textAlign="center">
+              This action cannot be undone.
+            </Text>
+          </VStack>
+        }
+      />
+
+      {/* Duplicate Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={duplicateDialogOpen}
+        onClose={() => {
+          if (!isDuplicating) {
+            setDuplicateDialogOpen(false);
+            setPendingActionNoteId(null);
+          }
+        }}
+        onConfirm={handleDuplicateConfirm}
+        title="Duplicate Note"
+        variant="duplicate"
+        confirmText="Duplicate"
+        cancelText="Cancel"
+        isLoading={isDuplicating}
+        description={
+          <VStack gap={3} align="stretch">
+            <Text fontSize="sm" color="gray.600" textAlign="center">
+              Create a copy of "{pendingNote?.title || "Untitled"}"?
+            </Text>
+            <Box bg="gray.100" p={3} borderRadius="md">
+              <VStack gap={2} align="start">
+                <HStack gap={2}>
+                  <Text fontSize="xs" color="green.600" fontWeight="medium">✓ Will copy:</Text>
+                  <Text fontSize="xs" color="gray.600">Title, All content</Text>
+                </HStack>
+                <HStack gap={2}>
+                  <Text fontSize="xs" color="orange.600" fontWeight="medium">✗ Won't copy:</Text>
+                  <Text fontSize="xs" color="gray.600">Version history, Ownership</Text>
+                </HStack>
+              </VStack>
+            </Box>
+          </VStack>
+        }
+      />
     </Box>
   );
 }

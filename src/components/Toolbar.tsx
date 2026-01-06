@@ -11,7 +11,8 @@ import {
   LuRemoveFormatting,
   LuImage,
 } from "react-icons/lu";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { AlertDialog } from "./ConfirmDialog";
 
 interface ToolbarProps {
   editor: Editor | null;
@@ -75,6 +76,7 @@ const HIGHLIGHT_COLORS = [
 export function Toolbar({ editor }: ToolbarProps) {
   const isMobile = useBreakpointValue({ base: true, md: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageSizeError, setImageSizeError] = useState(false);
 
   if (!editor) return null;
 
@@ -84,7 +86,8 @@ export function Toolbar({ editor }: ToolbarProps) {
 
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image must be less than 5MB");
+      setImageSizeError(true);
+      event.target.value = "";
       return;
     }
 
@@ -288,8 +291,8 @@ export function Toolbar({ editor }: ToolbarProps) {
           <Menu.Trigger asChild>
             <IconButton
               aria-label="Text Color"
-              variant={currentTextColor ? "solid" : "ghost"}
-              colorPalette={currentTextColor ? "blue" : "gray"}
+              variant="ghost"
+              colorPalette="gray"
               size="sm"
             >
               <Box position="relative" display="flex" alignItems="center" justifyContent="center">
@@ -558,8 +561,8 @@ export function Toolbar({ editor }: ToolbarProps) {
             <TooltipButton label="Text Color">
               <IconButton
                 aria-label="Text Color"
-                variant={currentTextColor ? "solid" : "ghost"}
-                colorPalette={currentTextColor ? "blue" : "gray"}
+                variant="ghost"
+                colorPalette="gray"
                 size="sm"
               >
                 <Box position="relative" display="flex" alignItems="center" justifyContent="center">
@@ -730,6 +733,16 @@ export function Toolbar({ editor }: ToolbarProps) {
         onChange={handleImageUpload}
         accept="image/*"
         style={{ display: "none" }}
+      />
+
+      {/* Image Size Error Dialog */}
+      <AlertDialog
+        isOpen={imageSizeError}
+        onClose={() => setImageSizeError(false)}
+        title="Image Too Large"
+        description="Please select an image smaller than 5MB."
+        variant="warning"
+        buttonText="OK"
       />
     </HStack>
   );

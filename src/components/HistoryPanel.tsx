@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Box,
   Button,
@@ -10,6 +10,7 @@ import {
 } from "@chakra-ui/react";
 import { LuRotateCcw, LuGitCompare, LuX } from "react-icons/lu";
 import * as Y from "yjs";
+import { ConfirmDialog, AlertDialog } from "./ConfirmDialog";
 
 interface Version {
   id: string;
@@ -73,6 +74,11 @@ export function HistoryPanel({
   const [restoring, setRestoring] = useState<string | null>(null);
   const [loadingVersion, setLoadingVersion] = useState<string | null>(null);
 
+  // Dialog states
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+
   const fetchVersions = async () => {
     setLoading(true);
     try {
@@ -94,20 +100,18 @@ export function HistoryPanel({
     }
   }, [isOpen, noteId]);
 
-  const handleRestore = async (versionId: string) => {
-    // Find the version to show in confirmation
-    const version = versions.find(v => v.id === versionId);
-    const versionDate = version ? new Date(version.timestamp).toLocaleString() : "this version";
+  const handleRestoreClick = useCallback((versionId: string) => {
+    setPendingRestoreId(versionId);
+    setRestoreDialogOpen(true);
+  }, []);
 
-    const confirmed = confirm(
-      `Restore to version from ${versionDate}?\n\n` +
-      `This will replace the current content with the selected version.\n` +
-      `The current content will be saved as a new version.`
-    );
+  const handleRestoreConfirm = useCallback(async () => {
+    if (!pendingRestoreId) return;
 
-    if (!confirmed) return;
-
+    const versionId = pendingRestoreId;
+    setRestoreDialogOpen(false);
     setRestoring(versionId);
+
     try {
       const protocol = partykitHost.includes("localhost") ? "http" : "https";
       const res = await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/restore/${versionId}`, {
@@ -162,14 +166,18 @@ export function HistoryPanel({
         fetchVersions();
       } else {
         console.error("Failed to restore version:", res.status);
-        alert("Failed to restore version. Please try again.");
+        setErrorDialogOpen(true);
       }
     } catch (err) {
       console.error("Failed to restore version:", err);
-      alert("Failed to restore version. Please try again.");
+      setErrorDialogOpen(true);
     }
     setRestoring(null);
-  };
+    setPendingRestoreId(null);
+  }, [pendingRestoreId, partykitHost, noteId, currentDoc, onPreview, onCompare, onRestore]);
+
+  // Get the pending restore version info for dialog
+  const pendingRestoreVersion = pendingRestoreId ? versions.find(v => v.id === pendingRestoreId) : null;
 
   const handleVersionClick = async (version: Version) => {
     setLoadingVersion(version.id);
@@ -304,7 +312,7 @@ export function HistoryPanel({
                 colorPalette="blue"
                 size="sm"
                 w="full"
-                onClick={() => handleRestore(selectedVersionId)}
+                onClick={() => handleRestoreClick(selectedVersionId)}
                 loading={restoring === selectedVersionId}
               >
                 <LuRotateCcw />
@@ -411,6 +419,51 @@ export function HistoryPanel({
           Refresh
         </Button>
       </Box>
+
+      {/* Restore Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={restoreDialogOpen}
+        onClose={() => {
+          setRestoreDialogOpen(false);
+          setPendingRestoreId(null);
+        }}
+        onConfirm={handleRestoreConfirm}
+        title="Restore Version"
+        variant="restore"
+        confirmText="Restore"
+        cancelText="Cancel"
+        description={
+          pendingRestoreVersion ? (
+            <VStack gap={2}>
+              <Text fontSize="sm" color="gray.600" textAlign="center">
+                Restore to version from{" "}
+                <Text as="span" fontWeight="medium">
+                  {new Date(pendingRestoreVersion.timestamp).toLocaleString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
+                </Text>
+                ?
+              </Text>
+              <Text fontSize="xs" color="gray.500" textAlign="center">
+                Current content will be saved as a new version
+              </Text>
+            </VStack>
+          ) : "Restore this version?"
+        }
+      />
+
+      {/* Error Alert Dialog */}
+      <AlertDialog
+        isOpen={errorDialogOpen}
+        onClose={() => setErrorDialogOpen(false)}
+        title="Restore Failed"
+        description="Failed to restore version. Please try again."
+        variant="error"
+        buttonText="OK"
+      />
     </Box>
   );
 }

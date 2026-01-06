@@ -12,4 +12,5 @@ export interface RecentNote {
   ownerId?: string;
   ownerName?: string;
   preview?: string;
+  isLocked?: boolean;
 }

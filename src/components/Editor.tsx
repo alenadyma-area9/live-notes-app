@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
-import { Box, HStack, Input, IconButton, Button, Text, Tooltip } from "@chakra-ui/react";
+import { Box, HStack, VStack, Input, IconButton, Button, Text, Tooltip } from "@chakra-ui/react";
 import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -11,12 +11,13 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuArrowLeft, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy } from "react-icons/lu";
+import { LuHistory, LuArrowLeft, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
 import type { ViewMode } from "./HistoryPanel";
 import { InlineDiffView } from "./InlineDiffView";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 import { useAppStore } from "../store";
 import { Portal } from "@chakra-ui/react";
@@ -66,6 +67,8 @@ interface EditorProps {
   onDelete?: () => void;
   onDuplicate?: (newNoteId: string, newTitle: string) => void;
   autoDuplicate?: boolean;
+  autoLockAction?: 'lock' | 'unlock' | null;
+  onLockActionComplete?: () => void;
   shareButtonState?: "default" | "copied";
 }
 
@@ -98,11 +101,14 @@ export function CollaborativeEditor({
   onDelete,
   onDuplicate,
   autoDuplicate,
+  autoLockAction,
+  onLockActionComplete,
   shareButtonState = "default"
 }: EditorProps) {
-  const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote, updateNotePreview } = useAppStore();
+  const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote, updateNotePreview, updateNoteLocked, isNoteOwner } = useAppStore();
   const [isConnected, setIsConnected] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
+  const isOwner = isNoteOwner(noteId);
 
   // Check for pending duplicate title in sessionStorage
   const getInitialTitle = () => {
@@ -123,6 +129,9 @@ export function CollaborativeEditor({
   const [previewState, setPreviewState] = useState<PreviewState | null>(null);
   const [compareState, setCompareState] = useState<CompareState | null>(null);
   const [isDeleted, setIsDeleted] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [lockDialogOpen, setLockDialogOpen] = useState(false);
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<YPartyKitProvider | null>(null);
@@ -277,6 +286,13 @@ export function CollaborativeEditor({
       // Check if note is deleted
       const deleted = (titleMap.get("deleted") as unknown) === true;
       setIsDeleted(deleted);
+
+      // Check if note is locked
+      const locked = (titleMap.get("locked") as unknown) === true;
+      setIsLocked(locked);
+
+      // Save lock state to store for home page display
+      updateNoteLocked(noteId, locked);
     };
 
     titleMap.observe(updateMeta);
@@ -373,6 +389,36 @@ export function CollaborativeEditor({
       providerRef.current.connect();
     }
   }, []);
+
+  const handleLockClick = useCallback(() => {
+    setLockDialogOpen(true);
+  }, []);
+
+  const handleLockConfirm = useCallback(() => {
+    titleMap.set("locked", !isLocked);
+    setLockDialogOpen(false);
+  }, [titleMap, isLocked]);
+
+  const handleDuplicateConfirm = useCallback(() => {
+    if (!ydocRef.current || !onDuplicate) return;
+
+    const state = Y.encodeStateAsUpdate(ydocRef.current);
+    let binary = "";
+    for (let i = 0; i < state.byteLength; i++) {
+      binary += String.fromCharCode(state[i]);
+    }
+    const stateBase64 = btoa(binary);
+
+    const newNoteId = Math.random().toString(36).substring(2, 10);
+    const newTitle = title ? `(copy) ${title}` : "(copy) Untitled";
+
+    sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+      state: stateBase64,
+      title: newTitle
+    }));
+
+    onDuplicate(newNoteId, newTitle);
+  }, [title, onDuplicate]);
 
   const editor = useEditor(
     {
@@ -502,6 +548,20 @@ export function CollaborativeEditor({
     return () => clearTimeout(timeout);
   }, [autoDuplicate, isConnected, isUserRegistered, onDuplicate, titleMap]);
 
+  // Auto-lock/unlock when requested from home page menu
+  useEffect(() => {
+    if (!autoLockAction || !isConnected || !isUserRegistered || !isOwner) return;
+
+    // Small delay to ensure doc is synced
+    const timeout = setTimeout(() => {
+      const shouldLock = autoLockAction === 'lock';
+      titleMap.set("locked", shouldLock);
+      onLockActionComplete?.();
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [autoLockAction, isConnected, isUserRegistered, isOwner, titleMap, onLockActionComplete]);
+
   // Auto-fill title from first line
   const handleTitleFocus = useCallback(() => {
     if (!editor) return;
@@ -538,6 +598,25 @@ export function CollaborativeEditor({
         <Text fontSize="lg" fontWeight="medium" color="gray.600">This note has been deleted</Text>
         <Text fontSize="sm" color="gray.400" mt={1}>The owner has removed this note.</Text>
         <Text fontSize="sm" color="gray.400" mb={4}>It has been removed from your list.</Text>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.location.href = "/"}
+        >
+          Go back to notes
+        </Button>
+      </Box>
+    );
+  }
+
+  // Show locked message for non-owners
+  if (isLocked && !isOwner) {
+    return (
+      <Box border="1px solid" borderColor="gray.200" borderRadius="md" bg="white" p={8} textAlign="center">
+        <Text fontSize="xl" color="gray.500" mb={2}>🔒</Text>
+        <Text fontSize="lg" fontWeight="medium" color="gray.600">This note is locked</Text>
+        <Text fontSize="sm" color="gray.400" mt={1}>The owner has restricted access to this note.</Text>
+        <Text fontSize="sm" color="gray.400" mb={4}>Contact the owner to request access.</Text>
         <Button
           variant="outline"
           size="sm"
@@ -662,15 +741,39 @@ export function CollaborativeEditor({
                     aria-label={shareButtonState === "copied" ? "Copied!" : "Share"}
                     variant="ghost"
                     size="sm"
-                    onClick={onShare}
+                    onClick={isLocked ? undefined : onShare}
                     colorPalette={shareButtonState === "copied" ? "green" : "gray"}
+                    disabled={isLocked}
+                    opacity={isLocked ? 0.5 : 1}
                   >
                     {shareButtonState === "copied" ? <LuCheck /> : <LuShare2 />}
                   </IconButton>
                 </Tooltip.Trigger>
                 <Tooltip.Positioner>
                   <Tooltip.Content>
-                    {shareButtonState === "copied" ? "Copied!" : "Share link"}
+                    {isLocked ? "Unlock to share" : shareButtonState === "copied" ? "Copied!" : "Share link"}
+                  </Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* Lock/Unlock (owner only) */}
+            {isOwner && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label={isLocked ? "Unlock note" : "Lock note"}
+                    variant={isLocked ? "solid" : "ghost"}
+                    size="sm"
+                    onClick={handleLockClick}
+                    colorPalette={isLocked ? "orange" : "gray"}
+                  >
+                    {isLocked ? <LuLock /> : <LuLockOpen />}
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>
+                    {isLocked ? "Unlock note" : "Lock note"}
                   </Tooltip.Content>
                 </Tooltip.Positioner>
               </Tooltip.Root>
@@ -684,59 +787,7 @@ export function CollaborativeEditor({
                     aria-label="Duplicate"
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      // Step 1: Confirmation
-                      const newTitlePreview = title ? `(copy) ${title}` : "(copy) Untitled";
-                      const confirmed = confirm(
-                        `Duplicate this note?\n\n` +
-                        `New title: "${newTitlePreview}"\n\n` +
-                        `Will copy:\n` +
-                        `• Title\n` +
-                        `• All content\n\n` +
-                        `Will NOT copy:\n` +
-                        `• Version history\n` +
-                        `• Ownership (you'll be the owner)`
-                      );
-                      if (!confirmed) return;
-
-                      console.log("[Duplicate] Step 1: Confirmed by user");
-
-                      // Step 2: Check Y.Doc
-                      if (!ydocRef.current) {
-                        console.error("[Duplicate] Step 2 FAILED: No Y.Doc available");
-                        return;
-                      }
-                      console.log("[Duplicate] Step 2: Y.Doc available");
-
-                      // Step 3: Encode state
-                      console.log("[Duplicate] Step 3: Encoding state...");
-                      const state = Y.encodeStateAsUpdate(ydocRef.current);
-                      console.log("[Duplicate] Step 3: State size:", state.byteLength, "bytes");
-
-                      let binary = "";
-                      for (let i = 0; i < state.byteLength; i++) {
-                        binary += String.fromCharCode(state[i]);
-                      }
-                      const stateBase64 = btoa(binary);
-                      console.log("[Duplicate] Step 3: Base64 length:", stateBase64.length);
-
-                      // Step 4: Generate new ID and store state in sessionStorage
-                      const newNoteId = Math.random().toString(36).substring(2, 10);
-                      const newTitle = title ? `(copy) ${title}` : "(copy) Untitled";
-                      console.log("[Duplicate] Step 4: New note ID:", newNoteId);
-                      console.log("[Duplicate] Step 4: New title:", newTitle);
-
-                      // Store in sessionStorage for the new note to pick up
-                      sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
-                        state: stateBase64,
-                        title: newTitle
-                      }));
-                      console.log("[Duplicate] Step 5: Stored in sessionStorage");
-
-                      // Navigate to new note with title
-                      console.log("[Duplicate] Step 6: Navigating to new note");
-                      onDuplicate(newNoteId, newTitle);
-                    }}
+                    onClick={() => setDuplicateDialogOpen(true)}
                   >
                     <LuCopy />
                   </IconButton>
@@ -929,6 +980,78 @@ export function CollaborativeEditor({
           selectedVersionId={selectedVersionId}
         />
       )}
+
+      {/* Duplicate Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={duplicateDialogOpen}
+        onClose={() => setDuplicateDialogOpen(false)}
+        onConfirm={handleDuplicateConfirm}
+        title="Duplicate Note"
+        variant="duplicate"
+        confirmText="Duplicate"
+        cancelText="Cancel"
+        description={
+          <VStack gap={3} align="stretch">
+            <Text fontSize="sm" color="gray.600" textAlign="center">
+              Create a copy of "{title || "Untitled"}"?
+            </Text>
+            <Box bg="gray.100" p={3} borderRadius="md">
+              <VStack gap={2} align="start">
+                <HStack gap={2}>
+                  <Text fontSize="xs" color="green.600" fontWeight="medium">✓ Will copy:</Text>
+                  <Text fontSize="xs" color="gray.600">Title, All content</Text>
+                </HStack>
+                <HStack gap={2}>
+                  <Text fontSize="xs" color="orange.600" fontWeight="medium">✗ Won't copy:</Text>
+                  <Text fontSize="xs" color="gray.600">Version history, Ownership</Text>
+                </HStack>
+              </VStack>
+            </Box>
+          </VStack>
+        }
+      />
+
+      {/* Lock/Unlock Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={lockDialogOpen}
+        onClose={() => setLockDialogOpen(false)}
+        onConfirm={handleLockConfirm}
+        title={isLocked ? "Unlock Note" : "Lock Note"}
+        variant="warning"
+        confirmText={isLocked ? "Unlock" : "Lock"}
+        cancelText="Cancel"
+        description={
+          isLocked ? (
+            <VStack gap={2}>
+              <Text fontSize="sm" color="gray.600" textAlign="center">
+                Make this note accessible to anyone with the link?
+              </Text>
+              <Text fontSize="xs" color="gray.500" textAlign="center">
+                People will be able to view and edit this note again.
+              </Text>
+            </VStack>
+          ) : (
+            <VStack gap={2}>
+              <Text fontSize="sm" color="gray.600" textAlign="center">
+                Restrict access to this note?
+              </Text>
+              <Box bg="orange.50" p={3} borderRadius="md" w="full">
+                <VStack gap={1} align="start">
+                  <Text fontSize="xs" color="orange.700">
+                    • Only you will be able to view and edit
+                  </Text>
+                  <Text fontSize="xs" color="orange.700">
+                    • Others will see "This note is locked"
+                  </Text>
+                  <Text fontSize="xs" color="orange.700">
+                    • Share link will be disabled
+                  </Text>
+                </VStack>
+              </Box>
+            </VStack>
+          )
+        }
+      />
     </HStack>
   );
 }

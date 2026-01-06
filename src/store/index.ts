@@ -22,6 +22,7 @@ interface AppActions {
   addRecentNote: (id: string, title: string, isCreator?: boolean, preview?: string) => void;
   updateNoteOwner: (id: string, ownerId: string, ownerName: string) => void;
   updateNotePreview: (id: string, preview: string) => void;
+  updateNoteLocked: (id: string, isLocked: boolean) => void;
   removeRecentNote: (id: string) => void;
   isNoteOwner: (id: string) => boolean;
 }
@@ -70,6 +71,14 @@ export const useAppStore = create<AppState & AppActions>()(
         const { recentNotes } = get();
         const updated = recentNotes.map((n) =>
           n.id === id ? { ...n, preview } : n
+        );
+        set({ recentNotes: updated });
+      },
+
+      updateNoteLocked: (id: string, isLocked: boolean) => {
+        const { recentNotes } = get();
+        const updated = recentNotes.map((n) =>
+          n.id === id ? { ...n, isLocked } : n
         );
         set({ recentNotes: updated });
       },

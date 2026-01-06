@@ -16,6 +16,7 @@ Real-time collaborative note-taking app. Create, edit, and share notes instantly
 - ✅ **Version history** - View and restore previous versions
 - ✅ **Duplicate notes** - Create copies of existing notes
 - ✅ **Clickable links** - Auto-detect URLs with preview bubble
+- ✅ **Lock notes** - Restrict access to owner only (others see "locked" message)
 
 ## Tech Stack
 
@@ -110,13 +111,6 @@ party/              # PartyKit server
 ├── index.ts        # Yjs collaboration server
 └── main.ts         # Main entry point
 ```
-
-## Future Improvements
-
-- [ ] Connection status indicator (online/offline)
-- [ ] Image paste/upload improvements
-- [ ] Export to PDF/Markdown
-- [ ] Note folders/organization
 
 ## License
 
