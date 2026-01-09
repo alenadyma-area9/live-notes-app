@@ -457,15 +457,6 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
   return result;
 }
 
-function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 // Render formatted text with diff highlighting
 function FormattedText({ segment, diffType }: { segment: FormattedSegment; diffType: DiffSegment["type"] }): ReactNode {
   const baseStyle: React.CSSProperties = {};
@@ -591,7 +582,6 @@ export function InlineDiffView({ oldDoc, newDoc, oldVersion, newVersion }: Inlin
   const additions = diffBlocks.filter(b => b.status === "added").length;
   const removals = diffBlocks.filter(b => b.status === "removed").length;
   const modifications = diffBlocks.filter(b => b.status === "modified").length;
-  const styleChanges = diffBlocks.filter(b => b.status === "style-only").length;
 
   let bulletIndex = 0;
   let orderedIndex = 0;
