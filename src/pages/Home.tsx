@@ -14,7 +14,7 @@ import {
   Input,
   Tooltip,
 } from "@chakra-ui/react";
-import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid, LuCopy, LuLock, LuLockOpen } from "react-icons/lu";
+import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid, LuCopy, LuLock, LuLockOpen, LuUsers, LuLink, LuZap } from "react-icons/lu";
 import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
 import { Header } from "../components/Header";
@@ -73,7 +73,6 @@ export function Home() {
   const { recentNotes, removeRecentNote, addRecentNote, isNoteOwner, userId, viewType, setViewType, updateNoteLocked } = useAppStore();
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
   // Search, filter, sort state
   const [searchQuery, setSearchQuery] = useState("");
@@ -254,9 +253,19 @@ export function Home() {
     return title;
   };
 
+  // Check if user has any visible notes (not locked by others)
+  const visibleNotes = useMemo(() => {
+    return recentNotes.filter(note => !note.isLocked || note.ownerId === userId);
+  }, [recentNotes, userId]);
+
+  const hasVisibleNotes = visibleNotes.length > 0;
+
   // Filter and sort notes
   const filteredAndSortedNotes = useMemo(() => {
     let notes = [...recentNotes];
+
+    // Hide locked notes from non-owners (they can still access via direct link)
+    notes = notes.filter(note => !note.isLocked || note.ownerId === userId);
 
     // Search filter
     if (searchQuery.trim()) {
@@ -353,36 +362,128 @@ export function Home() {
 
       <Container maxW="900px" py={8}>
         <VStack gap={6} align="stretch">
-          {recentNotes.length === 0 ? (
-            /* Empty state */
-            <Box textAlign="center" py={16}>
-              <Text fontSize="4xl" mb={4}>📝</Text>
-              <Text fontSize="xl" fontWeight="semibold" color="gray.700" mb={2}>
-                No notes yet
-              </Text>
-              <Text fontSize="sm" color="gray.500" mb={6}>
-                Create your first note and start collaborating
-              </Text>
-              <Button
-                bg="#6366F1"
-                color="white"
-                size="lg"
-                onClick={handleCreateNote}
-                borderRadius="xl"
-                px={8}
-                boxShadow="md"
-                _hover={{ bg: "#4F46E5", boxShadow: "lg", transform: "translateY(-2px)" }}
-                transition="all 0.2s"
+          {!hasVisibleNotes ? (
+            /* Empty state - onboarding (centered, fits one screen) */
+            <Box
+              minH="calc(100vh - 200px)"
+              display="flex"
+              flexDirection="column"
+              justifyContent="center"
+              alignItems="center"
+            >
+              {/* Hero section */}
+              <Box textAlign="center" mb={10}>
+                <Text fontSize="2xl" fontWeight="bold" color="gray.800" mb={2}>
+                  Welcome to Live Notes ✨
+                </Text>
+                <Text fontSize="md" color="gray.500" maxW="400px" mx="auto" mb={6}>
+                  Real-time collaborative notes. No sign-up required.
+                </Text>
+                <Button
+                  bg="#6366F1"
+                  color="white"
+                  size="lg"
+                  onClick={handleCreateNote}
+                  borderRadius="xl"
+                  px={8}
+                  boxShadow="0 4px 14px rgba(99, 102, 241, 0.4)"
+                  _hover={{ bg: "#4F46E5", boxShadow: "0 6px 20px rgba(99, 102, 241, 0.5)", transform: "translateY(-2px)" }}
+                  transition="all 0.2s"
+                >
+                  <LuPlus /> Create Your First Note
+                </Button>
+              </Box>
+
+              {/* Features - horizontal on desktop */}
+              <HStack
+                gap={5}
+                justify="center"
+                flexWrap={{ base: "wrap", md: "nowrap" }}
+                maxW="750px"
               >
-                <LuPlus /> Create Your First Note
-              </Button>
+                {/* Feature 1: Collaborate */}
+                <Box
+                  bg="white"
+                  p={5}
+                  borderRadius="xl"
+                  boxShadow="0 2px 12px rgba(0, 0, 0, 0.06)"
+                  flex="1"
+                  minW="200px"
+                  maxW="240px"
+                >
+                  <HStack gap={2} mb={2}>
+                    <Box color="#6366F1"><LuUsers size={18} /></Box>
+                    <Text fontWeight="semibold" fontSize="sm" color="gray.800">Collaborate</Text>
+                  </HStack>
+                  <Text fontSize="sm" color="gray.500" lineHeight="1.5">
+                    Edit together in real-time with live cursors
+                  </Text>
+                </Box>
+
+                {/* Feature 2: Share (with no sign-up mention) */}
+                <Box
+                  bg="white"
+                  p={5}
+                  borderRadius="xl"
+                  boxShadow="0 2px 12px rgba(0, 0, 0, 0.06)"
+                  flex="1"
+                  minW="200px"
+                  maxW="240px"
+                >
+                  <HStack gap={2} mb={2}>
+                    <Box color="#10B981"><LuLink size={18} /></Box>
+                    <Text fontWeight="semibold" fontSize="sm" color="gray.800">Share Instantly</Text>
+                  </HStack>
+                  <Text fontSize="sm" color="gray.500" lineHeight="1.5">
+                    Copy link and invite anyone — no sign-up needed
+                  </Text>
+                </Box>
+
+                {/* Feature 3: Never Lose Work (auto-save + history merged) */}
+                <Box
+                  bg="white"
+                  p={5}
+                  borderRadius="xl"
+                  boxShadow="0 2px 12px rgba(0, 0, 0, 0.06)"
+                  flex="1"
+                  minW="200px"
+                  maxW="240px"
+                >
+                  <HStack gap={2} mb={2}>
+                    <Box color="#F59E0B"><LuZap size={18} /></Box>
+                    <Text fontWeight="semibold" fontSize="sm" color="gray.800">Never Lose Work</Text>
+                  </HStack>
+                  <Text fontSize="sm" color="gray.500" lineHeight="1.5">
+                    Auto-saved with version history to restore anytime
+                  </Text>
+                </Box>
+              </HStack>
+
+              {/* How it works - inline */}
+              <HStack justify="center" gap={8} mt={10} color="gray.400" fontSize="sm">
+                <HStack gap={2}>
+                  <Box w={6} h={6} bg="gray.100" borderRadius="full" display="flex" alignItems="center" justifyContent="center" fontSize="xs" fontWeight="bold" color="gray.500">1</Box>
+                  <Text>Create</Text>
+                </HStack>
+                <Text>→</Text>
+                <HStack gap={2}>
+                  <Box w={6} h={6} bg="gray.100" borderRadius="full" display="flex" alignItems="center" justifyContent="center" fontSize="xs" fontWeight="bold" color="gray.500">2</Box>
+                  <Text>Share</Text>
+                </HStack>
+                <Text>→</Text>
+                <HStack gap={2}>
+                  <Box w={6} h={6} bg="gray.100" borderRadius="full" display="flex" alignItems="center" justifyContent="center" fontSize="xs" fontWeight="bold" color="gray.500">3</Box>
+                  <Text>Collaborate</Text>
+                </HStack>
+              </HStack>
             </Box>
           ) : (
             <Box>
               {/* Search, Filter, Sort Controls */}
-              <HStack mb={4} gap={3}>
-                {/* Search - styled nicely with Cmd+K hint */}
-                <Box position="relative" flex={1}>
+              {/* Desktop: Single row | Mobile: Two rows */}
+              <Box mb={4}>
+                {/* Desktop layout */}
+                <HStack gap={3} display={{ base: "none", md: "flex" }}>
                   <Input
                     ref={searchInputRef}
                     placeholder="Search notes..."
@@ -393,46 +494,29 @@ export function Home() {
                     borderRadius="xl"
                     fontSize="md"
                     boxShadow="sm"
-                    pl={4}
-                    pr={16}
+                    px={4}
+                    flex={1}
                     _placeholder={{ color: "gray.400" }}
                     _hover={{ boxShadow: "md" }}
                     _focus={{ boxShadow: "0 0 0 2px #818CF8", outline: "none" }}
                   />
-                  <Box
-                    position="absolute"
-                    right={3}
-                    top="50%"
-                    transform="translateY(-50%)"
-                    bg="gray.100"
-                    px={2}
-                    py={0.5}
-                    borderRadius="md"
-                    fontSize="xs"
-                    color="gray.500"
-                    fontWeight="medium"
-                    pointerEvents="none"
-                  >
-                    {isMac ? "⌘K" : "Ctrl+K"}
-                  </Box>
-                </Box>
 
-                {/* Create button - compact */}
-                <Button
-                  bg="#6366F1"
-                  color="white"
-                  size="sm"
-                  onClick={handleCreateNote}
-                  borderRadius="lg"
-                  px={3}
-                  h={9}
-                  boxShadow="sm"
-                  fontWeight="medium"
-                  _hover={{ bg: "#4F46E5", boxShadow: "md", transform: "translateY(-1px)" }}
-                  transition="all 0.2s"
-                >
-                  <LuPlus size={16} /> New
-                </Button>
+                  <Button
+                    bg="#6366F1"
+                    color="white"
+                    size="sm"
+                    onClick={handleCreateNote}
+                    borderRadius="lg"
+                    px={3}
+                    h={10}
+                    boxShadow="sm"
+                    fontWeight="medium"
+                    flexShrink={0}
+                    _hover={{ bg: "#4F46E5", boxShadow: "md", transform: "translateY(-1px)" }}
+                    transition="all 0.2s"
+                  >
+                    <LuPlus size={16} /> New
+                  </Button>
 
                 {/* Filter by owner */}
                 <Menu.Root positioning={{ placement: "bottom-start" }}>
@@ -606,7 +690,97 @@ export function Home() {
                     </Tooltip.Positioner>
                   </Tooltip.Root>
                 </HStack>
-              </HStack>
+                </HStack>
+
+                {/* Mobile layout - single row with menu */}
+                <HStack gap={2} display={{ base: "flex", md: "none" }}>
+                  <Input
+                    placeholder="Search notes..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    bg="white"
+                    border="none"
+                    borderRadius="xl"
+                    fontSize="md"
+                    boxShadow="sm"
+                    px={4}
+                    flex={1}
+                    _placeholder={{ color: "gray.400" }}
+                    _focus={{ boxShadow: "0 0 0 2px #818CF8", outline: "none" }}
+                  />
+                  <IconButton
+                    aria-label="New note"
+                    bg="#6366F1"
+                    color="white"
+                    size="sm"
+                    onClick={handleCreateNote}
+                    borderRadius="lg"
+                    boxShadow="sm"
+                    _hover={{ bg: "#4F46E5" }}
+                  >
+                    <LuPlus size={18} />
+                  </IconButton>
+                  <Menu.Root positioning={{ placement: "bottom-end" }}>
+                    <Menu.Trigger asChild>
+                      <IconButton
+                        aria-label="Options"
+                        variant="ghost"
+                        size="sm"
+                        color={(ownerFilter !== "all" || sortOption !== "lastEdited") ? "#6366F1" : "gray.500"}
+                        bg={(ownerFilter !== "all" || sortOption !== "lastEdited") ? "#EEF2FF" : "white"}
+                        boxShadow="sm"
+                        borderRadius="lg"
+                      >
+                        <LuEllipsisVertical size={18} />
+                      </IconButton>
+                    </Menu.Trigger>
+                    <Portal>
+                      <Menu.Positioner>
+                        <Menu.Content minW="180px">
+                          {/* Filter section */}
+                          <Text px={3} py={1} fontSize="xs" fontWeight="semibold" color="gray.500">Filter</Text>
+                          <Menu.Item value="filter-all" onClick={() => setOwnerFilter("all")} bg={ownerFilter === "all" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>All notes</Text>{ownerFilter === "all" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Item value="filter-me" onClick={() => setOwnerFilter("me")} bg={ownerFilter === "me" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>My notes</Text>{ownerFilter === "me" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Item value="filter-others" onClick={() => setOwnerFilter("others")} bg={ownerFilter === "others" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>Shared with me</Text>{ownerFilter === "others" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Item value="filter-locked" onClick={() => setOwnerFilter("locked")} bg={ownerFilter === "locked" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>Locked</Text>{ownerFilter === "locked" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Separator />
+                          {/* Sort section */}
+                          <Text px={3} py={1} fontSize="xs" fontWeight="semibold" color="gray.500">Sort by</Text>
+                          <Menu.Item value="sort-lastEdited" onClick={() => setSortOption("lastEdited")} bg={sortOption === "lastEdited" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>Last edited</Text>{sortOption === "lastEdited" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Item value="sort-created" onClick={() => setSortOption("created")} bg={sortOption === "created" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>Last created</Text>{sortOption === "created" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Item value="sort-title" onClick={() => setSortOption("title")} bg={sortOption === "title" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>Title A-Z</Text>{sortOption === "title" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Item value="sort-author" onClick={() => setSortOption("author")} bg={sortOption === "author" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><Text>Author A-Z</Text>{sortOption === "author" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Separator />
+                          {/* View section */}
+                          <Text px={3} py={1} fontSize="xs" fontWeight="semibold" color="gray.500">View</Text>
+                          <Menu.Item value="view-list" onClick={() => setViewType("list")} bg={viewType === "list" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><HStack gap={2}><LuList size={14} /><Text>List</Text></HStack>{viewType === "list" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                          <Menu.Item value="view-grid" onClick={() => setViewType("grid")} bg={viewType === "grid" ? "#EEF2FF" : undefined}>
+                            <HStack justify="space-between" w="full"><HStack gap={2}><LuLayoutGrid size={14} /><Text>Grid</Text></HStack>{viewType === "grid" && <Text color="#6366F1">✓</Text>}</HStack>
+                          </Menu.Item>
+                        </Menu.Content>
+                      </Menu.Positioner>
+                    </Portal>
+                  </Menu.Root>
+                </HStack>
+              </Box>
 
               {/* Notes list/grid */}
               {filteredAndSortedNotes.length === 0 ? (
@@ -699,13 +873,15 @@ export function Home() {
                                     <LuCopy />
                                     Duplicate
                                   </Menu.Item>
-                                  <Menu.Item
-                                    value="remove"
-                                    onClick={(e) => handleRemoveFromList(note.id, e as unknown as React.MouseEvent)}
-                                  >
-                                    <LuX />
-                                    Remove from my list
-                                  </Menu.Item>
+                                  {!isOwner && (
+                                    <Menu.Item
+                                      value="remove"
+                                      onClick={(e) => handleRemoveFromList(note.id, e as unknown as React.MouseEvent)}
+                                    >
+                                      <LuX />
+                                      Remove from my list
+                                    </Menu.Item>
+                                  )}
                                   {isOwner && (
                                     <>
                                       <Menu.Item
@@ -872,13 +1048,15 @@ export function Home() {
                                       <LuCopy />
                                       Duplicate
                                     </Menu.Item>
-                                    <Menu.Item
-                                      value="remove"
-                                      onClick={(e) => handleRemoveFromList(note.id, e as unknown as React.MouseEvent)}
-                                    >
-                                      <LuX />
-                                      Remove from my list
-                                    </Menu.Item>
+                                    {!isOwner && (
+                                      <Menu.Item
+                                        value="remove"
+                                        onClick={(e) => handleRemoveFromList(note.id, e as unknown as React.MouseEvent)}
+                                      >
+                                        <LuX />
+                                        Remove from my list
+                                      </Menu.Item>
+                                    )}
                                     {isOwner && (
                                       <>
                                         <Menu.Item
@@ -913,7 +1091,7 @@ export function Home() {
               {/* Results count */}
               {searchQuery || ownerFilter !== "all" ? (
                 <Text fontSize="xs" color="gray.400" mt={2} textAlign="center">
-                  Showing {filteredAndSortedNotes.length} of {recentNotes.length} notes
+                  Showing {filteredAndSortedNotes.length} of {visibleNotes.length} notes
                 </Text>
               ) : null}
             </Box>

@@ -7,6 +7,7 @@ import {
   HStack,
   Text,
   Spinner,
+  useBreakpointValue,
 } from "@chakra-ui/react";
 import { LuRotateCcw, LuGitCompare, LuX } from "react-icons/lu";
 import * as Y from "yjs";
@@ -18,6 +19,7 @@ interface Version {
   title: string;
   editedBy?: string;
   editorColor?: string;
+  isCreation?: boolean;
 }
 
 export type ViewMode = "editing" | "preview" | "compare";
@@ -261,11 +263,13 @@ export function HistoryPanel({
     });
   };
 
+  const isMobile = useBreakpointValue({ base: true, md: false });
+
   if (!isOpen) return null;
 
   return (
     <Box
-      w="320px"
+      w={{ base: "200px", md: "320px" }}
       bg="white"
       border="none"
       borderLeft="1px solid"
@@ -278,13 +282,13 @@ export function HistoryPanel({
       h="100%"
       overflow="hidden"
     >
-      {/* Header - same height as editor top bar */}
-      <HStack px={4} h="49px" bg="gray.50" borderBottom="1px solid" borderColor="gray.100" justify="space-between">
-        <Text fontWeight="semibold" color="gray.700">History</Text>
+      {/* Header */}
+      <HStack px={{ base: 2, md: 4 }} h="49px" bg="gray.50" borderBottom="1px solid" borderColor="gray.100" justify="space-between">
+        <Text fontWeight="semibold" color="gray.700" fontSize={{ base: "sm", md: "md" }}>History</Text>
         <IconButton
           aria-label="Close history"
           variant="ghost"
-          size="sm"
+          size="xs"
           onClick={onClose}
         >
           <LuX />
@@ -292,40 +296,38 @@ export function HistoryPanel({
       </HStack>
 
       {/* Content */}
-      <Box flex={1} overflowY="auto" p={4}>
+      <Box flex={1} overflowY="auto" p={{ base: 2, md: 4 }}>
         {loading ? (
           <VStack py={8}>
-            <Spinner />
-            <Text color="gray.500">Loading versions...</Text>
+            <Spinner size="sm" />
+            <Text color="gray.500" fontSize={{ base: "xs", md: "sm" }}>Loading...</Text>
           </VStack>
         ) : versions.length === 0 ? (
-          <VStack py={8}>
-            <Text color="gray.500">No versions saved yet</Text>
-            <Text fontSize="sm" color="gray.400" textAlign="center">
-              Versions are saved after 60s of inactivity when significant changes are made
-            </Text>
+          <VStack py={6}>
+            <Text color="gray.500" fontSize={{ base: "xs", md: "sm" }}>No versions yet</Text>
           </VStack>
         ) : (
-          <VStack gap={2} align="stretch">
+          <VStack gap={{ base: 1, md: 2 }} align="stretch">
             {/* Restore button - shown when a version is selected */}
             {selectedVersionId && (
               <Button
                 bg="#6366F1"
                 color="white"
                 _hover={{ bg: "#4F46E5" }}
-                size="sm"
+                size="xs"
                 w="full"
                 onClick={() => handleRestoreClick(selectedVersionId)}
                 loading={restoring === selectedVersionId}
+                fontSize={{ base: "2xs", md: "xs" }}
               >
-                <LuRotateCcw />
-                Restore selected version
+                <LuRotateCcw size={isMobile ? 12 : 14} />
+                Restore
               </Button>
             )}
 
             {/* Current version - clickable to return to editing */}
             <Box
-              p={3}
+              p={{ base: 2, md: 3 }}
               borderRadius="lg"
               border="none"
               bg={viewMode === "editing" ? "green.50" : "gray.50"}
@@ -334,18 +336,11 @@ export function HistoryPanel({
               onClick={handleBackToEditing}
               transition="background 0.15s ease"
             >
-              <HStack justify="space-between">
-                <HStack gap={2}>
-                  <Box w={2} h={2} borderRadius="full" bg={viewMode === "editing" ? "green.500" : "gray.400"} />
-                  <VStack align="start" gap={0}>
-                    <Text fontWeight="medium" fontSize="sm" color={viewMode === "editing" ? "green.700" : "gray.600"}>
-                      Current version
-                    </Text>
-                    {viewMode === "editing" && (
-                      <Text fontSize="xs" color="green.600">Live editing</Text>
-                    )}
-                  </VStack>
-                </HStack>
+              <HStack gap={2}>
+                <Box w={2} h={2} borderRadius="full" bg={viewMode === "editing" ? "green.500" : "gray.400"} flexShrink={0} />
+                <Text fontWeight="medium" fontSize={{ base: "xs", md: "sm" }} color={viewMode === "editing" ? "green.700" : "gray.600"}>
+                  Current
+                </Text>
               </HStack>
             </Box>
 
@@ -353,74 +348,72 @@ export function HistoryPanel({
             {versions.map((version) => {
               const isSelected = selectedVersionId === version.id;
               const isLoading = loadingVersion === version.id;
+              const isCreation = version.isCreation;
 
               return (
                 <Box
                   key={version.id}
-                  p={3}
+                  p={{ base: 2, md: 3 }}
                   borderRadius="lg"
                   border="none"
-                  bg={isSelected ? "#EEF2FF" : "gray.50"}
-                  _hover={{
-                    bg: isSelected ? "#E0E7FF" : "gray.100",
-                    "& .compare-btn": { opacity: 1 }
-                  }}
-                  cursor="pointer"
-                  onClick={() => !isLoading && handleVersionClick(version)}
+                  bg={isSelected ? "#EEF2FF" : isCreation ? "purple.50" : "gray.50"}
                   opacity={isLoading ? 0.7 : 1}
                   transition="background 0.15s ease"
                 >
-                  <VStack align="stretch" gap={2}>
-                    <Box>
-                      <HStack gap={2}>
-                        {isSelected && (
-                          <Box w={2} h={2} borderRadius="full" bg="#6366F1" flexShrink={0} />
-                        )}
-                        <Text fontWeight="medium" fontSize="sm" lineClamp={1}>
-                          {version.title || "Untitled"}
-                        </Text>
-                      </HStack>
-                      <HStack gap={2} mt={1} flexWrap="wrap" ml={isSelected ? 4 : 0}>
-                        {version.editedBy && (
-                          <HStack gap={1}>
-                            <Box
-                              w={2}
-                              h={2}
-                              borderRadius="full"
-                              bg={version.editorColor || "gray.400"}
-                            />
-                            <Text fontSize="xs" color="gray.500">
-                              {version.editedBy}
-                            </Text>
-                          </HStack>
-                        )}
-                        <Text fontSize="xs" color="gray.400">
-                          {formatTime(version.timestamp)}
-                        </Text>
-                      </HStack>
-                    </Box>
+                  <VStack align="stretch" gap={1}>
+                    <HStack gap={2}>
+                      {isSelected && (
+                        <Box w={2} h={2} borderRadius="full" bg="#6366F1" flexShrink={0} />
+                      )}
+                      <Text fontWeight="medium" fontSize={{ base: "xs", md: "sm" }} lineClamp={1} color={isCreation ? "purple.700" : undefined}>
+                        {isCreation ? "Created" : (version.title || "Untitled")}
+                      </Text>
+                    </HStack>
+                    <HStack gap={1} flexWrap="wrap" ml={isSelected ? 4 : 0}>
+                      {version.editedBy && (
+                        <HStack gap={1}>
+                          <Box w={1.5} h={1.5} borderRadius="full" bg={version.editorColor || "gray.400"} />
+                          <Text fontSize="2xs" color={isCreation ? "purple.600" : "gray.500"} lineClamp={1}>
+                            {version.editedBy}
+                          </Text>
+                        </HStack>
+                      )}
+                      <Text fontSize="2xs" color="gray.400">
+                        {formatTime(version.timestamp)}
+                      </Text>
+                    </HStack>
 
-                    {/* Compare button - muted, visible on hover */}
-                    <Box
-                      className="compare-btn"
-                      opacity={isSelected ? 1 : 0.4}
-                      transition="opacity 0.15s ease"
-                    >
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        color={isSelected ? "#4F46E5" : "gray.500"}
-                        _hover={{ bg: isSelected ? "#E0E7FF" : "gray.200" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCompare(version);
-                        }}
-                        loading={isLoading}
-                      >
-                        <LuGitCompare />
-                        Compare
-                      </Button>
-                    </Box>
+                    {/* Action buttons - View and Compare */}
+                    {!isCreation && (
+                      <HStack gap={1} mt={1}>
+                        <Button
+                          size="xs"
+                          variant={isSelected ? "solid" : "ghost"}
+                          bg={isSelected ? "#6366F1" : undefined}
+                          color={isSelected ? "white" : "gray.600"}
+                          _hover={{ bg: isSelected ? "#4F46E5" : "gray.100" }}
+                          onClick={() => !isLoading && handleVersionClick(version)}
+                          loading={isLoading && !isSelected}
+                          flex={1}
+                          fontSize={{ base: "2xs", md: "xs" }}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          color="gray.600"
+                          _hover={{ bg: "gray.100" }}
+                          onClick={() => handleCompare(version)}
+                          loading={isLoading && isSelected}
+                          flex={1}
+                          fontSize={{ base: "2xs", md: "xs" }}
+                        >
+                          <LuGitCompare size={12} />
+                          Diff
+                        </Button>
+                      </HStack>
+                    )}
                   </VStack>
                 </Box>
               );
@@ -430,8 +423,8 @@ export function HistoryPanel({
       </Box>
 
       {/* Footer */}
-      <Box p={4} borderTop="1px solid" borderColor="gray.100">
-        <Button variant="ghost" size="sm" w="full" onClick={fetchVersions} color="gray.600">
+      <Box p={{ base: 2, md: 4 }} borderTop="1px solid" borderColor="gray.100">
+        <Button variant="ghost" size="xs" w="full" onClick={fetchVersions} color="gray.600" fontSize={{ base: "xs", md: "sm" }}>
           Refresh
         </Button>
       </Box>

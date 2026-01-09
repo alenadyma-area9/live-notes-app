@@ -599,27 +599,18 @@ export function InlineDiffView({ oldDoc, newDoc, oldVersion, newVersion }: Inlin
   return (
     <VStack align="stretch" gap={0}>
       {/* Info bar */}
-      <HStack px={4} py={2} bg="gray.50" justify="space-between" flexWrap="wrap" gap={2}>
-        <HStack gap={4} fontSize="sm">
-          <HStack>
-            <Box w={3} h={3} borderRadius="full" bg={oldVersion.editorColor} />
-            <Text color="gray.600">
-              <strong>{oldVersion.editedBy}</strong> ({formatTime(oldVersion.timestamp)})
-            </Text>
-          </HStack>
-          <Text color="gray.400">→</Text>
-          <HStack>
-            <Box w={3} h={3} borderRadius="full" bg={newVersion.editorColor} />
-            <Text color="gray.600">
-              <strong>{newVersion.editedBy}</strong> ({formatTime(newVersion.timestamp)})
-            </Text>
-          </HStack>
+      <HStack px={3} py={2} bg="gray.50" justify="space-between" flexWrap="wrap" gap={2}>
+        <HStack gap={2} fontSize="xs" color="gray.500">
+          <Box w={2} h={2} borderRadius="full" bg={oldVersion.editorColor} />
+          <Text>Old</Text>
+          <Text color="gray.300">→</Text>
+          <Box w={2} h={2} borderRadius="full" bg={newVersion.editorColor} />
+          <Text>Now</Text>
         </HStack>
-        <HStack gap={3} fontSize="sm">
+        <HStack gap={2} fontSize="xs">
           {additions > 0 && <Text color="green.600" fontWeight="medium">+{additions}</Text>}
           {removals > 0 && <Text color="red.600" fontWeight="medium">-{removals}</Text>}
-          {modifications > 0 && <Text color="#4F46E5" fontWeight="medium">{modifications} text</Text>}
-          {styleChanges > 0 && <Text color="orange.600" fontWeight="medium">{styleChanges} style</Text>}
+          {modifications > 0 && <Text color="#4F46E5" fontWeight="medium">~{modifications}</Text>}
         </HStack>
       </HStack>
 

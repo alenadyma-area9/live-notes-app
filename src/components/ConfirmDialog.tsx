@@ -6,8 +6,9 @@ import {
   HStack,
   Text,
   Box,
+  Input,
 } from "@chakra-ui/react";
-import { LuTriangleAlert, LuInfo, LuTrash2, LuCopy, LuRotateCcw } from "react-icons/lu";
+import { LuTriangleAlert, LuInfo, LuTrash2, LuCopy, LuRotateCcw, LuLink } from "react-icons/lu";
 import type { ReactNode } from "react";
 
 export type DialogVariant = "danger" | "warning" | "info" | "duplicate" | "restore";
@@ -303,7 +304,7 @@ export function AlertDialog({
 }
 
 // Custom hook for easier dialog management
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface UseConfirmDialogOptions {
   title: string;
@@ -372,4 +373,153 @@ export function useAlertDialog() {
   };
 
   return { alert, dialogProps, AlertDialog };
+}
+
+// Input Dialog for getting user input (e.g., URL)
+interface InputDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (value: string) => void;
+  title: string;
+  placeholder?: string;
+  initialValue?: string;
+  submitText?: string;
+  cancelText?: string;
+}
+
+export function InputDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  title,
+  placeholder = "",
+  initialValue = "",
+  submitText = "Add",
+  cancelText = "Cancel",
+}: InputDialogProps) {
+  const [value, setValue] = useState(initialValue);
+
+  // Reset value when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setValue(initialValue);
+    }
+  }, [isOpen, initialValue]);
+
+  const handleOpenChange = (e: { open: boolean }) => {
+    if (!e.open) {
+      onClose();
+    }
+  };
+
+  const handleSubmit = () => {
+    if (value.trim()) {
+      onSubmit(value.trim());
+      onClose();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  return (
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+      placement="center"
+      motionPreset="scale"
+      initialFocusEl={() => document.querySelector<HTMLInputElement>('[data-autofocus]')}
+    >
+      <Portal>
+        <Dialog.Backdrop bg="blackAlpha.600" />
+        <Dialog.Positioner>
+          <Dialog.Content
+            bg="white"
+            borderRadius="xl"
+            boxShadow="2xl"
+            maxW="400px"
+            w="90vw"
+            p={0}
+            overflow="hidden"
+          >
+            <VStack gap={0} align="stretch">
+              {/* Header with icon */}
+              <VStack pt={6} pb={4} px={6} gap={3}>
+                <Box
+                  w={12}
+                  h={12}
+                  borderRadius="full"
+                  bg="#EEF2FF"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  <LuLink size={24} color="#4F46E5" />
+                </Box>
+                <Dialog.Title
+                  fontSize="lg"
+                  fontWeight="semibold"
+                  textAlign="center"
+                  color="gray.800"
+                >
+                  {title}
+                </Dialog.Title>
+              </VStack>
+
+              {/* Input */}
+              <Box px={6} pb={4}>
+                <Input
+                  data-autofocus
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={placeholder}
+                  size="md"
+                  borderRadius="lg"
+                  borderColor="gray.300"
+                  _focus={{ borderColor: "#6366F1", boxShadow: "0 0 0 1px #6366F1" }}
+                />
+              </Box>
+
+              {/* Actions */}
+              <HStack
+                px={6}
+                py={4}
+                gap={3}
+                bg="gray.50"
+                borderTop="1px solid"
+                borderColor="gray.100"
+              >
+                <Button
+                  flex={1}
+                  variant="outline"
+                  onClick={onClose}
+                  size="md"
+                  borderRadius="lg"
+                >
+                  {cancelText}
+                </Button>
+                <Button
+                  flex={1}
+                  bg="#6366F1"
+                  color="white"
+                  _hover={{ bg: "#4F46E5" }}
+                  onClick={handleSubmit}
+                  disabled={!value.trim()}
+                  size="md"
+                  borderRadius="lg"
+                >
+                  {submitText}
+                </Button>
+              </HStack>
+            </VStack>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
+  );
 }

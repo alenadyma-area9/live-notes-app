@@ -10,9 +10,10 @@ import {
   LuHighlighter,
   LuRemoveFormatting,
   LuImage,
+  LuLink,
 } from "react-icons/lu";
 import { useRef, useState } from "react";
-import { AlertDialog } from "./ConfirmDialog";
+import { AlertDialog, InputDialog } from "./ConfirmDialog";
 
 interface ToolbarProps {
   editor: Editor | null;
@@ -77,6 +78,8 @@ export function Toolbar({ editor }: ToolbarProps) {
   const isMobile = useBreakpointValue({ base: true, md: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageSizeError, setImageSizeError] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [existingLinkUrl, setExistingLinkUrl] = useState("");
 
   if (!editor) return null;
 
@@ -422,6 +425,25 @@ export function Toolbar({ editor }: ToolbarProps) {
           </Menu.Positioner>
         </Menu.Root>
 
+        {/* Link */}
+        <TooltipButton label={editor.isActive("link") ? "Edit Link" : "Add Link"}>
+          <IconButton
+            aria-label={editor.isActive("link") ? "Edit Link" : "Add Link"}
+            onClick={() => {
+              const currentUrl = editor.getAttributes("link").href || "";
+              setExistingLinkUrl(currentUrl);
+              setLinkDialogOpen(true);
+            }}
+            variant="ghost"
+            bg={editor.isActive("link") ? "#EEF2FF" : undefined}
+            color={editor.isActive("link") ? "#4F46E5" : "gray.600"}
+            _hover={{ bg: editor.isActive("link") ? "#E0E7FF" : "gray.100" }}
+            size="sm"
+          >
+            <LuLink size={14} />
+          </IconButton>
+        </TooltipButton>
+
         {/* Image */}
         <TooltipButton label="Insert Image">
           <IconButton
@@ -455,6 +477,27 @@ export function Toolbar({ editor }: ToolbarProps) {
           onChange={handleImageUpload}
           accept="image/*"
           style={{ display: "none" }}
+        />
+
+        {/* Link URL Dialog */}
+        <InputDialog
+          isOpen={linkDialogOpen}
+          onClose={() => setLinkDialogOpen(false)}
+          onSubmit={(url) => {
+            if (existingLinkUrl) {
+              // Extend selection to entire link before updating
+              editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+            } else if (editor.state.selection.empty) {
+              // No selection - insert URL as linked text
+              editor.chain().focus().insertContent(`<a href="${url}">${url}</a>`).run();
+            } else {
+              editor.chain().focus().setLink({ href: url }).run();
+            }
+          }}
+          title={existingLinkUrl ? "Edit Link" : "Add Link"}
+          placeholder="https://example.com"
+          initialValue={existingLinkUrl}
+          submitText={existingLinkUrl ? "Update Link" : "Add Link"}
         />
       </HStack>
     );
@@ -702,6 +745,25 @@ export function Toolbar({ editor }: ToolbarProps) {
 
       <Separator />
 
+      {/* Link */}
+      <TooltipButton label={editor.isActive("link") ? "Edit Link" : "Add Link"}>
+        <IconButton
+          aria-label={editor.isActive("link") ? "Edit Link" : "Add Link"}
+          onClick={() => {
+            const currentUrl = editor.getAttributes("link").href || "";
+            setExistingLinkUrl(currentUrl);
+            setLinkDialogOpen(true);
+          }}
+          variant="ghost"
+          bg={editor.isActive("link") ? "#EEF2FF" : undefined}
+          color={editor.isActive("link") ? "#4F46E5" : "gray.600"}
+          _hover={{ bg: editor.isActive("link") ? "#E0E7FF" : "gray.100" }}
+          size="sm"
+        >
+          <LuLink />
+        </IconButton>
+      </TooltipButton>
+
       {/* Image */}
       <TooltipButton label="Insert Image">
         <IconButton
@@ -745,6 +807,27 @@ export function Toolbar({ editor }: ToolbarProps) {
         description="Please select an image smaller than 5MB."
         variant="warning"
         buttonText="OK"
+      />
+
+      {/* Link URL Dialog */}
+      <InputDialog
+        isOpen={linkDialogOpen}
+        onClose={() => setLinkDialogOpen(false)}
+        onSubmit={(url) => {
+          if (existingLinkUrl) {
+            // Extend selection to entire link before updating
+            editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+          } else if (editor.state.selection.empty) {
+            // No selection - insert URL as linked text
+            editor.chain().focus().insertContent(`<a href="${url}">${url}</a>`).run();
+          } else {
+            editor.chain().focus().setLink({ href: url }).run();
+          }
+        }}
+        title={existingLinkUrl ? "Edit Link" : "Add Link"}
+        placeholder="https://example.com"
+        initialValue={existingLinkUrl}
+        submitText={existingLinkUrl ? "Update Link" : "Add Link"}
       />
     </HStack>
   );

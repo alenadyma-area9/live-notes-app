@@ -8,6 +8,7 @@ interface Version {
   title: string;
   editedBy: string;
   editorColor: string;
+  isCreation?: boolean;  // True for the initial "note created" entry
 }
 
 interface UserInfo {
@@ -97,6 +98,9 @@ export default class YjsServer implements Party.Server {
         // Also store in persistent storage for version attribution
         await this.room.storage.put(`user:${body.connectionId}`, body.user);
         await this.room.storage.put("lastActiveUser", body.user);
+
+        // Check if this is a brand new note (no creation entry yet)
+        await this.maybeCreateInitialVersion(body.user);
 
         return Response.json({ success: true }, { headers: corsHeaders });
       } catch {
@@ -479,6 +483,44 @@ export default class YjsServer implements Party.Server {
       hash = hash & hash;
     }
     return hash.toString(36);
+  }
+
+  async maybeCreateInitialVersion(user: UserInfo) {
+    // Check if we already have a creation entry
+    const hasCreation = await this.room.storage.get<boolean>("hasCreationEntry");
+    if (hasCreation) {
+      return;
+    }
+
+    // Mark that we're creating the initial entry
+    await this.room.storage.put("hasCreationEntry", true);
+
+    const now = Date.now();
+    const versionId = `v_${now}_created`;
+
+    // Get current versions (should be empty for new note)
+    const versions = await this.room.storage.get<Version[]>("versions") || [];
+
+    // Create the initial "note created" entry
+    const creationVersion: Version = {
+      id: versionId,
+      timestamp: now,
+      title: "",  // Empty title for new note
+      editedBy: user.name,
+      editorColor: user.color,
+      isCreation: true,
+    };
+
+    // Store empty state for this version (so it can be "restored" to empty)
+    const emptyDoc = new Y.Doc();
+    const emptyState = Y.encodeStateAsUpdate(emptyDoc);
+    const stateBase64 = uint8ArrayToBase64(emptyState);
+    await this.room.storage.put(`version:${versionId}`, stateBase64);
+    emptyDoc.destroy();
+
+    // Add to versions list (at the end since it's the oldest)
+    const updatedVersions = [...versions, creationVersion];
+    await this.room.storage.put("versions", updatedVersions);
   }
 
   onClose(conn: Party.Connection) {

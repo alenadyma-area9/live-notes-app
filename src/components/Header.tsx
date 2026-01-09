@@ -95,6 +95,7 @@ export function Header({ showNameInput = false }: HeaderProps) {
                   placeholder="Enter your name"
                   size="sm"
                   borderRadius="lg"
+                  maxLength={20}
                   onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
                 />
                 <HStack justify="flex-end" gap={2}>

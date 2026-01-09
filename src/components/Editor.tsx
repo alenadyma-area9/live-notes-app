@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Box, HStack, VStack, Input, IconButton, Button, Text, Tooltip } from "@chakra-ui/react";
+import { Box, HStack, VStack, Input, IconButton, Button, Text, Tooltip, Menu, Portal, useBreakpointValue } from "@chakra-ui/react";
 import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -9,9 +9,10 @@ import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine } from "react-icons/lu";
+import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
@@ -70,6 +71,7 @@ export function CollaborativeEditor({
   shareButtonState = "default"
 }: EditorProps) {
   const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote, updateNotePreview, updateNoteLocked, isNoteOwner } = useAppStore();
+  const isMobile = useBreakpointValue({ base: true, md: false });
   const [isConnected, setIsConnected] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
   const isOwner = isNoteOwner(noteId);
@@ -97,6 +99,7 @@ export function CollaborativeEditor({
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const showToast = useCallback((message: string, type: "success" | "info" = "success") => {
     setToast({ message, type });
@@ -367,6 +370,23 @@ export function CollaborativeEditor({
     setLockDialogOpen(true);
   }, []);
 
+  const handleManualSave = useCallback(async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const protocol = partykitHost.includes("localhost") ? "http" : "https";
+      await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
+        method: "POST",
+      });
+      showToast("Version saved!", "success");
+    } catch (err) {
+      console.error("Failed to save version:", err);
+    }
+    setIsSaving(false);
+  }, [isSaving, partykitHost, noteId, showToast]);
+
+
+
   const handleLockConfirm = useCallback(() => {
     titleMap.set("locked", !isLocked);
     setLockDialogOpen(false);
@@ -426,6 +446,9 @@ export function CollaborativeEditor({
             target: '_blank',
             rel: 'noopener noreferrer',
           },
+        }),
+        Placeholder.configure({
+          placeholder: 'Start typing your thoughts...',
         }),
       ],
       editorProps: {
@@ -608,18 +631,59 @@ export function CollaborativeEditor({
 
   if (isDeleted) {
     return (
-      <Box borderRadius="xl" boxShadow="0 4px 24px rgba(0, 0, 0, 0.08)" bg="white" p={8} textAlign="center">
-        <Text fontSize="xl" color="gray.500" mb={2}>📭</Text>
-        <Text fontSize="lg" fontWeight="medium" color="gray.600">This note has been deleted</Text>
-        <Text fontSize="sm" color="gray.400" mt={1}>The owner has removed this note.</Text>
-        <Text fontSize="sm" color="gray.400" mb={4}>It has been removed from your list.</Text>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.location.href = "/"}
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        minH="calc(100vh - 120px)"
+        p={4}
+      >
+        <VStack
+          bg="white"
+          borderRadius="2xl"
+          boxShadow="0 8px 32px rgba(0, 0, 0, 0.08)"
+          p={10}
+          maxW="400px"
+          w="full"
+          gap={4}
+          textAlign="center"
         >
-          Go back to notes
-        </Button>
+          <Box
+            w={16}
+            h={16}
+            bg="red.50"
+            borderRadius="2xl"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            color="red.400"
+          >
+            <LuTrash2 size={32} />
+          </Box>
+          <VStack gap={1}>
+            <Text fontSize="xl" fontWeight="semibold" color="gray.800">
+              This note has been deleted
+            </Text>
+            <Text fontSize="sm" color="gray.500" lineHeight="1.6">
+              The owner has removed this note.
+              <br />
+              It has been removed from your list.
+            </Text>
+          </VStack>
+          <Button
+            bg="#6366F1"
+            color="white"
+            size="md"
+            borderRadius="xl"
+            px={6}
+            mt={2}
+            _hover={{ bg: "#4F46E5", transform: "translateY(-1px)" }}
+            transition="all 0.2s"
+            onClick={() => window.location.href = "/"}
+          >
+            Go back to notes
+          </Button>
+        </VStack>
       </Box>
     );
   }
@@ -627,18 +691,59 @@ export function CollaborativeEditor({
   // Show locked message for non-owners
   if (isLocked && !isOwner) {
     return (
-      <Box borderRadius="xl" boxShadow="0 4px 24px rgba(0, 0, 0, 0.08)" bg="white" p={8} textAlign="center">
-        <Text fontSize="xl" color="gray.500" mb={2}>🔒</Text>
-        <Text fontSize="lg" fontWeight="medium" color="gray.600">This note is locked</Text>
-        <Text fontSize="sm" color="gray.400" mt={1}>The owner has restricted access to this note.</Text>
-        <Text fontSize="sm" color="gray.400" mb={4}>Contact the owner to request access.</Text>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.location.href = "/"}
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        minH="calc(100vh - 120px)"
+        p={4}
+      >
+        <VStack
+          bg="white"
+          borderRadius="2xl"
+          boxShadow="0 8px 32px rgba(0, 0, 0, 0.08)"
+          p={10}
+          maxW="400px"
+          w="full"
+          gap={4}
+          textAlign="center"
         >
-          Go back to notes
-        </Button>
+          <Box
+            w={16}
+            h={16}
+            bg="orange.50"
+            borderRadius="2xl"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            color="orange.400"
+          >
+            <LuLock size={32} />
+          </Box>
+          <VStack gap={1}>
+            <Text fontSize="xl" fontWeight="semibold" color="gray.800">
+              This note is locked
+            </Text>
+            <Text fontSize="sm" color="gray.500" lineHeight="1.6">
+              The owner has restricted access to this note.
+              <br />
+              Contact the owner to request access.
+            </Text>
+          </VStack>
+          <Button
+            bg="#6366F1"
+            color="white"
+            size="md"
+            borderRadius="xl"
+            px={6}
+            mt={2}
+            _hover={{ bg: "#4F46E5", transform: "translateY(-1px)" }}
+            transition="all 0.2s"
+            onClick={() => window.location.href = "/"}
+          >
+            Go back to notes
+          </Button>
+        </VStack>
       </Box>
     );
   }
@@ -652,10 +757,17 @@ export function CollaborativeEditor({
 
   const editorStyles = {
     "& .ProseMirror": {
-      minHeight: "400px",
+      minHeight: isMobile ? "200px" : "400px",
       outline: "none",
       color: "#1a1a1a",
       lineHeight: "1.7",
+      "& p.is-editor-empty:first-of-type::before": {
+        content: "attr(data-placeholder)",
+        color: "#9CA3AF",
+        float: "left",
+        height: 0,
+        pointerEvents: "none",
+      },
       "& p": { margin: "0.75em 0", lineHeight: "1.7" },
       "& h1": { fontSize: "1.5rem", fontWeight: "600", margin: "1em 0 0.5em", lineHeight: "1.3" },
       "& h2": { fontSize: "1.2rem", fontWeight: "600", margin: "1em 0 0.5em", lineHeight: "1.4" },
@@ -667,10 +779,20 @@ export function CollaborativeEditor({
       "& li": { margin: "0.25em 0", display: "list-item" },
       "& li p": { margin: "0" },
       "& img": {
-        maxWidth: "100%",
+        maxWidth: "min(100%, 500px)",
         height: "auto",
-        borderRadius: "4px",
+        borderRadius: "8px",
         margin: "0.5em 0",
+        cursor: "pointer",
+        transition: "box-shadow 0.15s ease, outline 0.15s ease",
+        "&:hover": {
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+        },
+      },
+      "& img.ProseMirror-selectednode": {
+        outline: "3px solid #6366F1",
+        outlineOffset: "2px",
+        boxShadow: "0 4px 12px rgba(99, 102, 241, 0.25)",
       },
       "& a": {
         color: "#6366F1",
@@ -706,260 +828,441 @@ export function CollaborativeEditor({
   };
 
   return (
-    <VStack align="stretch" gap={0} h="100%">
-      {/* Full-width top bar */}
-      <HStack
-        px={4}
-        h="56px"
-        bg="white"
-        borderBottom="1px solid"
-        borderColor="gray.100"
-        flexShrink={0}
-        gap={3}
-      >
-        {/* Left: Logo as Home button */}
-        <Tooltip.Root openDelay={100} closeDelay={50}>
-          <Tooltip.Trigger asChild>
-            <Box
-              as="button"
+    <VStack align="stretch" gap={0} h="100%" flex={1} overflow="hidden">
+      {/* Mobile Layout */}
+      {isMobile ? (
+        <>
+          {/* Mobile Top Bar */}
+          <Box
+            h="52px"
+            bg="white"
+            borderBottom="1px solid"
+            borderColor="gray.100"
+            flexShrink={0}
+            display="flex"
+            alignItems="center"
+            px={3}
+            gap={2}
+          >
+            {/* Back Arrow */}
+            <IconButton
+              aria-label="Back to notes"
+              variant="ghost"
+              size="sm"
+              color="#6366F1"
               onClick={onBack}
-              bg="#6366F1"
-              color="white"
-              p={2}
-              borderRadius="lg"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              cursor="pointer"
-              _hover={{ bg: "#4F46E5" }}
-              transition="background 0.15s ease"
-              flexShrink={0}
+              _hover={{ bg: "#EEF2FF" }}
             >
-              <LuPenLine size={18} />
-            </Box>
-          </Tooltip.Trigger>
-          <Tooltip.Positioner>
-            <Tooltip.Content>Back to notes</Tooltip.Content>
-          </Tooltip.Positioner>
-        </Tooltip.Root>
+              <LuArrowLeft size={22} />
+            </IconButton>
 
-        {/* Center: Title - flex to fill available space */}
-        <Box
-          flex={1}
-          minW={0}
-          overflow="hidden"
-        >
-          {viewMode === "editing" ? (
-            <Input
-              value={title}
-              onChange={handleTitleChange}
-              onFocus={handleTitleFocus}
-              placeholder="Untitled note..."
-              fontSize="md"
-              fontWeight="medium"
-              textAlign="center"
-              maxLength={100}
-              color={title ? "gray.800" : "gray.400"}
-              _placeholder={{ color: "gray.400" }}
-              border="none"
-              outline="none"
-              boxShadow="none"
-              _focus={{ boxShadow: "none", borderColor: "transparent" }}
-              css={{
-                textOverflow: "ellipsis",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-              }}
-            />
-          ) : (
-            <Text
-              fontSize="md"
-              fontWeight="medium"
-              color="gray.700"
-              textAlign="center"
-              overflow="hidden"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-            >
-              {displayTitle || "Untitled"}
-            </Text>
-          )}
-        </Box>
+            {/* Spacer */}
+            <Box flex={1} />
 
-        {/* Right: Actions + Avatar */}
-        <HStack gap={1} flexShrink={0}>
-          {/* Share */}
-          {onShare && (
-            <Tooltip.Root openDelay={100} closeDelay={50}>
-              <Tooltip.Trigger asChild>
-                <IconButton
-                  aria-label={shareButtonState === "copied" ? "Copied!" : "Share"}
-                  variant="ghost"
-                  size="sm"
-                  onClick={isLocked ? undefined : () => {
-                    onShare();
-                    showToast("Link copied to clipboard!", "success");
-                  }}
-                  color={shareButtonState === "copied" ? "green.600" : "gray.600"}
-                  _hover={{ bg: "gray.100", color: "gray.800" }}
-                  disabled={isLocked}
-                  opacity={isLocked ? 0.4 : 1}
-                >
-                  {shareButtonState === "copied" ? <LuCheck /> : <LuShare2 />}
-                </IconButton>
-              </Tooltip.Trigger>
-              <Tooltip.Positioner>
-                <Tooltip.Content>
-                  {isLocked ? "Unlock to share" : shareButtonState === "copied" ? "Copied!" : "Share link"}
-                </Tooltip.Content>
-              </Tooltip.Positioner>
-            </Tooltip.Root>
-          )}
-
-          {/* Lock/Unlock (owner only) */}
-          {isOwner && (
-            <Tooltip.Root openDelay={100} closeDelay={50}>
-              <Tooltip.Trigger asChild>
-                <IconButton
-                  aria-label={isLocked ? "Unlock note" : "Lock note"}
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLockClick}
-                  color={isLocked ? "orange.600" : "gray.600"}
-                  bg={isLocked ? "orange.50" : undefined}
-                  _hover={{ bg: isLocked ? "orange.100" : "gray.100", color: isLocked ? "orange.700" : "gray.800" }}
-                >
-                  {isLocked ? <LuLock /> : <LuLockOpen />}
-                </IconButton>
-              </Tooltip.Trigger>
-              <Tooltip.Positioner>
-                <Tooltip.Content>
-                  {isLocked ? "Unlock note" : "Lock note"}
-                </Tooltip.Content>
-              </Tooltip.Positioner>
-            </Tooltip.Root>
-          )}
-
-          {/* Duplicate */}
-          {onDuplicate && (
-            <Tooltip.Root openDelay={100} closeDelay={50}>
-              <Tooltip.Trigger asChild>
-                <IconButton
-                  aria-label="Duplicate"
-                  variant="ghost"
-                  size="sm"
-                  color="gray.600"
-                  _hover={{ bg: "gray.100", color: "gray.800" }}
-                  onClick={() => setDuplicateDialogOpen(true)}
-                >
-                  <LuCopy />
-                </IconButton>
-              </Tooltip.Trigger>
-              <Tooltip.Positioner>
-                <Tooltip.Content>Duplicate note</Tooltip.Content>
-              </Tooltip.Positioner>
-            </Tooltip.Root>
-          )}
-
-          {/* Delete */}
-          {onDelete && (
-            <Tooltip.Root openDelay={100} closeDelay={50}>
-              <Tooltip.Trigger asChild>
-                <IconButton
-                  aria-label="Delete"
-                  variant="ghost"
-                  size="sm"
-                  color="gray.600"
-                  _hover={{ color: "red.600", bg: "red.50" }}
-                  onClick={onDelete}
-                >
-                  <LuTrash2 />
-                </IconButton>
-              </Tooltip.Trigger>
-              <Tooltip.Positioner>
-                <Tooltip.Content>Delete note</Tooltip.Content>
-              </Tooltip.Positioner>
-            </Tooltip.Root>
-          )}
-
-          {/* History */}
-          <Tooltip.Root openDelay={100} closeDelay={50}>
-            <Tooltip.Trigger asChild>
+            {/* Share */}
+            {onShare && (
               <IconButton
-                aria-label="Version history"
+                aria-label="Share"
                 variant="ghost"
                 size="sm"
-                bg={historyOpen ? "#EEF2FF" : undefined}
-                color={historyOpen ? "#4F46E5" : "gray.600"}
-                _hover={{ bg: historyOpen ? "#E0E7FF" : "gray.100", color: historyOpen ? "#4338CA" : "gray.800" }}
-                onClick={() => setHistoryOpen(!historyOpen)}
+                onClick={isLocked ? undefined : () => {
+                  onShare();
+                  showToast("Link copied!", "success");
+                }}
+                color={shareButtonState === "copied" ? "green.600" : "gray.600"}
+                disabled={isLocked}
+                opacity={isLocked ? 0.4 : 1}
               >
-                <LuHistory />
+                {shareButtonState === "copied" ? <LuCheck size={20} /> : <LuShare2 size={20} />}
               </IconButton>
+            )}
+
+            {/* More Menu (Lock, Duplicate, Delete, History, Save) */}
+            <Menu.Root positioning={{ placement: "bottom-end" }}>
+              <Menu.Trigger asChild>
+                <IconButton
+                  aria-label="More options"
+                  variant="ghost"
+                  size="sm"
+                  color="gray.600"
+                >
+                  <LuEllipsisVertical size={20} />
+                </IconButton>
+              </Menu.Trigger>
+              <Portal>
+                <Menu.Positioner>
+                  <Menu.Content minW="180px">
+                    <Menu.Item value="save" onClick={handleManualSave}>
+                      <LuSave />
+                      <Text>Save version</Text>
+                    </Menu.Item>
+                    <Menu.Item value="history" onClick={() => setHistoryOpen(!historyOpen)}>
+                      <LuHistory />
+                      <Text>Version history</Text>
+                    </Menu.Item>
+                    <Menu.Separator />
+                    {onDuplicate && (
+                      <Menu.Item value="duplicate" onClick={() => setDuplicateDialogOpen(true)}>
+                        <LuCopy />
+                        <Text>Duplicate note</Text>
+                      </Menu.Item>
+                    )}
+                    {isOwner && (
+                      <Menu.Item value="lock" onClick={handleLockClick}>
+                        {isLocked ? <LuLockOpen /> : <LuLock />}
+                        <Text>{isLocked ? "Unlock note" : "Lock note"}</Text>
+                      </Menu.Item>
+                    )}
+                    {onDelete && (
+                      <Menu.Item value="delete" onClick={onDelete} color="red.500">
+                        <LuTrash2 />
+                        <Text>Delete note</Text>
+                      </Menu.Item>
+                    )}
+                  </Menu.Content>
+                </Menu.Positioner>
+              </Portal>
+            </Menu.Root>
+
+            {/* Collaborators + You */}
+            <HStack gap={0} ml={1}>
+              <CollaboratorsList
+                provider={provider}
+                currentUser={{ name: userName, color: userColor }}
+                maxDisplay={2}
+                showCurrentUser={false}
+              />
+              <Box
+                w={8}
+                h={8}
+                borderRadius="full"
+                bg={userColor}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                border="2px solid white"
+                boxShadow="0 0 0 2px #6366F1"
+                ml={-1}
+                zIndex={10}
+              >
+                <Text fontSize="xs" fontWeight="bold" color="white">
+                  {userName.charAt(0).toUpperCase()}
+                </Text>
+              </Box>
+            </HStack>
+          </Box>
+
+          {/* Mobile Title Row */}
+          <Box px={4} py={3} bg="white" borderBottom="1px solid" borderColor="gray.100">
+            {viewMode === "editing" ? (
+              <Input
+                value={title}
+                onChange={handleTitleChange}
+                onFocus={handleTitleFocus}
+                placeholder="Untitled note..."
+                fontSize="lg"
+                fontWeight="semibold"
+                maxLength={100}
+                color={title ? "gray.800" : "gray.400"}
+                _placeholder={{ color: "gray.400" }}
+                border="none"
+                outline="none"
+                boxShadow="none"
+                _focus={{ boxShadow: "none", borderColor: "transparent" }}
+                px={0}
+                h="auto"
+              />
+            ) : (
+              <Text fontSize="lg" fontWeight="semibold" color="gray.700">
+                {displayTitle || "Untitled"}
+              </Text>
+            )}
+          </Box>
+        </>
+      ) : (
+        /* Desktop Top Bar */
+        <Box
+          h="56px"
+          bg="white"
+          borderBottom="1px solid"
+          borderColor="gray.100"
+          flexShrink={0}
+          display="flex"
+          alignItems="center"
+          px={4}
+          gap={4}
+        >
+          {/* Logo */}
+          <Tooltip.Root openDelay={100} closeDelay={50}>
+            <Tooltip.Trigger asChild>
+              <Box
+                as="button"
+                onClick={onBack}
+                bg="#6366F1"
+                color="white"
+                p={2}
+                borderRadius="lg"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                cursor="pointer"
+                _hover={{ bg: "#4F46E5" }}
+                transition="background 0.15s ease"
+                flexShrink={0}
+              >
+                <LuPenLine size={18} />
+              </Box>
             </Tooltip.Trigger>
             <Tooltip.Positioner>
-              <Tooltip.Content>Version history</Tooltip.Content>
+              <Tooltip.Content>Back to notes</Tooltip.Content>
             </Tooltip.Positioner>
           </Tooltip.Root>
 
-          {/* Separator */}
-          <Box w="1px" h={6} bg="gray.200" mx={2} />
+          {/* Title (left-aligned) */}
+          <Box flex={1} minW={0}>
+            {viewMode === "editing" ? (
+              <Input
+                value={title}
+                onChange={handleTitleChange}
+                onFocus={handleTitleFocus}
+                placeholder="Untitled note..."
+                fontSize="md"
+                fontWeight="medium"
+                maxLength={100}
+                color={title ? "gray.800" : "gray.400"}
+                _placeholder={{ color: "gray.400" }}
+                border="none"
+                outline="none"
+                boxShadow="none"
+                _focus={{ boxShadow: "none", borderColor: "transparent" }}
+                px={0}
+                css={{
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                }}
+              />
+            ) : (
+              <Text
+                fontSize="md"
+                fontWeight="medium"
+                color="gray.700"
+                overflow="hidden"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+              >
+                {displayTitle || "Untitled"}
+              </Text>
+            )}
+          </Box>
 
-          {/* Collaborators + You */}
-          <HStack gap={0} ml={1}>
-            {/* Other collaborators (stacked) */}
-            <CollaboratorsList
-              provider={provider}
-              currentUser={{ name: userName, color: userColor }}
-              maxDisplay={4}
-              showCurrentUser={false}
-            />
+          {/* Right actions */}
+          <HStack gap={1} flexShrink={0}>
+            {/* Sync status */}
+            <HStack gap={1} color={isConnected ? "gray.400" : "orange.500"} fontSize="xs" mr={1}>
+              <LuCloud size={14} />
+              <Text whiteSpace="nowrap">
+                {isConnected ? "Synced" : "Offline"}
+              </Text>
+            </HStack>
 
-            {/* You (larger, with ring) */}
+            {/* Save Version */}
             <Tooltip.Root openDelay={100} closeDelay={50}>
               <Tooltip.Trigger asChild>
-                <Box
-                  w={9}
-                  h={9}
-                  borderRadius="full"
-                  bg={userColor}
-                  display="flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  cursor="pointer"
-                  border="2px solid white"
-                  boxShadow="0 0 0 2px #6366F1"
-                  ml={-1}
-                  zIndex={10}
+                <IconButton
+                  aria-label="Save version"
+                  variant="ghost"
+                  size="sm"
+                  color="gray.600"
+                  _hover={{ bg: "gray.100", color: "#6366F1" }}
+                  onClick={handleManualSave}
+                  disabled={isSaving}
                 >
-                  <Text fontSize="sm" fontWeight="bold" color="white">
-                    {userName.charAt(0).toUpperCase()}
-                  </Text>
-                </Box>
+                  <LuSave size={18} />
+                </IconButton>
               </Tooltip.Trigger>
               <Tooltip.Positioner>
-                <Tooltip.Content>{userName} (you)</Tooltip.Content>
+                <Tooltip.Content>Save version snapshot</Tooltip.Content>
               </Tooltip.Positioner>
             </Tooltip.Root>
+
+            {/* History */}
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <IconButton
+                  aria-label="Version history"
+                  variant="ghost"
+                  size="sm"
+                  bg={historyOpen ? "#EEF2FF" : undefined}
+                  color={historyOpen ? "#4F46E5" : "gray.600"}
+                  _hover={{ bg: historyOpen ? "#E0E7FF" : "gray.100", color: historyOpen ? "#4338CA" : "gray.800" }}
+                  onClick={() => setHistoryOpen(!historyOpen)}
+                >
+                  <LuHistory size={18} />
+                </IconButton>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>Version history</Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
+
+            {/* Separator */}
+            <Box w="1px" h={6} bg="gray.200" mx={1} />
+
+            {/* Share */}
+            {onShare && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label={shareButtonState === "copied" ? "Copied!" : "Share"}
+                    variant="ghost"
+                    size="sm"
+                    onClick={isLocked ? undefined : () => {
+                      onShare();
+                      showToast("Link copied to clipboard!", "success");
+                    }}
+                    color={shareButtonState === "copied" ? "green.600" : "gray.600"}
+                    _hover={{ bg: "gray.100", color: "gray.800" }}
+                    disabled={isLocked}
+                    opacity={isLocked ? 0.4 : 1}
+                  >
+                    {shareButtonState === "copied" ? <LuCheck /> : <LuShare2 />}
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>
+                    {isLocked ? "Unlock to share" : shareButtonState === "copied" ? "Copied!" : "Share link"}
+                  </Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* Lock/Unlock (owner only) */}
+            {isOwner && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label={isLocked ? "Unlock note" : "Lock note"}
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLockClick}
+                    color={isLocked ? "orange.600" : "gray.600"}
+                    bg={isLocked ? "orange.50" : undefined}
+                    _hover={{ bg: isLocked ? "orange.100" : "gray.100", color: isLocked ? "orange.700" : "gray.800" }}
+                  >
+                    {isLocked ? <LuLock /> : <LuLockOpen />}
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>
+                    {isLocked ? "Unlock note" : "Lock note"}
+                  </Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* Duplicate */}
+            {onDuplicate && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label="Duplicate"
+                    variant="ghost"
+                    size="sm"
+                    color="gray.600"
+                    _hover={{ bg: "gray.100", color: "gray.800" }}
+                    onClick={() => setDuplicateDialogOpen(true)}
+                  >
+                    <LuCopy />
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>Duplicate note</Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* Delete */}
+            {onDelete && (
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label="Delete"
+                    variant="ghost"
+                    size="sm"
+                    color="gray.600"
+                    _hover={{ color: "red.600", bg: "red.50" }}
+                    onClick={onDelete}
+                  >
+                    <LuTrash2 />
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>Delete note</Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            )}
+
+            {/* Separator */}
+            <Box w="1px" h={6} bg="gray.200" mx={1} />
+
+            {/* Collaborators + You */}
+            <HStack gap={0} ml={1}>
+              {/* Other collaborators (stacked) */}
+              <CollaboratorsList
+                provider={provider}
+                currentUser={{ name: userName, color: userColor }}
+                maxDisplay={4}
+                showCurrentUser={false}
+              />
+
+              {/* You (larger, with ring) */}
+              <Tooltip.Root openDelay={100} closeDelay={50}>
+                <Tooltip.Trigger asChild>
+                  <Box
+                    w={9}
+                    h={9}
+                    borderRadius="full"
+                    bg={userColor}
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    cursor="pointer"
+                    border="2px solid white"
+                    boxShadow="0 0 0 2px #6366F1"
+                    ml={-1}
+                    zIndex={10}
+                  >
+                    <Text fontSize="sm" fontWeight="bold" color="white">
+                      {userName.charAt(0).toUpperCase()}
+                    </Text>
+                  </Box>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>{userName} (you)</Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
+            </HStack>
           </HStack>
-        </HStack>
-      </HStack>
+        </Box>
+      )}
 
       {/* Editor + History */}
-      <Box flex={1} overflow="hidden" px={4} py={4} display="flex" justifyContent="center">
+      <Box flex={1} overflow="hidden" px={{ base: 0, md: 4 }} py={{ base: 0, md: 4 }} display="flex" justifyContent="center">
         <HStack
           align="stretch"
           gap={4}
           maxW={historyOpen ? "1136px" : "800px"}
           w="100%"
+          h="100%"
         >
           {/* Main content area */}
           <Box
             flex={1}
             minW={0}
             border="none"
-            borderRadius="xl"
-            boxShadow="0 4px 24px rgba(0, 0, 0, 0.08)"
+            borderRadius={{ base: "none", md: "xl" }}
+            boxShadow={{ base: "none", md: "0 4px 24px rgba(0, 0, 0, 0.08)" }}
             bg="white"
             overflow="hidden"
             display="flex"
@@ -967,8 +1270,20 @@ export function CollaborativeEditor({
           >
         {/* Toolbar / Status bar */}
         {viewMode === "editing" ? (
-          <Box bg="gray.50" borderBottom="1px solid" borderColor="gray.100">
-            <Toolbar editor={editor} />
+          <Box
+            bg="gray.50"
+            borderBottom="1px solid"
+            borderColor="gray.100"
+            overflowX={{ base: "auto", md: "visible" }}
+            overflowY="hidden"
+            css={{
+              "&::-webkit-scrollbar": { display: "none" },
+              scrollbarWidth: "none",
+            }}
+          >
+            <Box minW={{ base: "max-content", md: "auto" }}>
+              <Toolbar editor={editor} />
+            </Box>
           </Box>
         ) : (
           <HStack
@@ -980,14 +1295,7 @@ export function CollaborativeEditor({
             justify="space-between"
           >
             <Text fontSize="sm" color={viewMode === "preview" ? "purple.700" : "#4338CA"} fontWeight="medium">
-              {viewMode === "preview"
-                ? `Viewing version from ${new Date(previewState!.version.timestamp).toLocaleString(undefined, {
-                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-                  })}`
-                : `Comparing with version from ${new Date(compareState!.oldVersion.timestamp).toLocaleString(undefined, {
-                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-                  })}`
-              }
+              {viewMode === "preview" ? "Preview mode" : "Compare mode"}
             </Text>
             <Button
               size="xs"
@@ -1006,7 +1314,7 @@ export function CollaborativeEditor({
         {/* Content area */}
         <Box flex={1} overflow="auto">
           {viewMode === "editing" && (
-            <Box p={4} css={editorStyles}>
+            <Box p={{ base: 5, md: 4 }} css={editorStyles}>
               {editor && (
                 <BubbleMenu
                   editor={editor}
@@ -1039,6 +1347,18 @@ export function CollaborativeEditor({
                     >
                       <LuExternalLink />
                     </IconButton>
+                    <IconButton
+                      aria-label="Remove link"
+                      size="xs"
+                      variant="ghost"
+                      color="gray.500"
+                      _hover={{ bg: "red.50", color: "red.500" }}
+                      onClick={() => {
+                        editor.chain().focus().unsetLink().run();
+                      }}
+                    >
+                      <LuUnlink />
+                    </IconButton>
                   </HStack>
                 </BubbleMenu>
               )}
@@ -1069,6 +1389,24 @@ export function CollaborativeEditor({
             />
           )}
         </Box>
+
+        {/* Mobile Sync Status Footer */}
+        {isMobile && viewMode === "editing" && (
+          <HStack
+            px={4}
+            py={2}
+            bg="gray.50"
+            borderTop="1px solid"
+            borderColor="gray.100"
+            justify="center"
+            gap={1}
+          >
+            <LuCloud size={14} color={isConnected ? "#9CA3AF" : "#F97316"} />
+            <Text fontSize="xs" color={isConnected ? "gray.400" : "orange.500"}>
+              {isConnected ? "Synced" : "Offline"}
+            </Text>
+          </HStack>
+        )}
         </Box>
 
         {/* History Panel - sidebar */}
