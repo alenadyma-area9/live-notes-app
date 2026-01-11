@@ -180,12 +180,19 @@ export function Home() {
           title: newTitle
         }));
 
+        // Also persist to server so it can be duplicated again from Home page
+        await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ state: data.state, title: newTitle }),
+        });
+
         // Add to recent notes immediately with the new title
         addRecentNote(newNoteId, newTitle, true);
 
         showToast(`Created "${newTitle}"`, "success");
       } else {
-        showToast("Failed to duplicate note", "info");
+        showToast("Failed to duplicate note - please open it first", "info");
       }
     } catch (err) {
       console.error("Failed to duplicate:", err);
@@ -360,107 +367,151 @@ export function Home() {
         </Box>
       )}
 
-      <Container maxW="900px" py={8}>
+      <Container maxW="900px" py={{ base: 4, md: 8 }}>
         <VStack gap={6} align="stretch">
           {!hasVisibleNotes ? (
-            /* Empty state - onboarding (centered, fits one screen) */
+            /* Empty state - premium onboarding */
             <Box
-              minH="calc(100vh - 200px)"
+              minH={{ base: "calc(100vh - 120px)", md: "calc(100vh - 200px)" }}
               display="flex"
               flexDirection="column"
               justifyContent="center"
               alignItems="center"
+              position="relative"
+              overflow="hidden"
+              pb={{ base: "15vh", md: "12vh" }}
             >
-              {/* Hero section */}
-              <Box textAlign="center" mb={10}>
-                <Text fontSize="2xl" fontWeight="bold" color="gray.800" mb={2}>
-                  Welcome to Live Notes ✨
-                </Text>
-                <Text fontSize="md" color="gray.500" maxW="400px" mx="auto" mb={6}>
-                  Real-time collaborative notes. No sign-up required.
-                </Text>
+              {/* Soft background mesh blobs */}
+              <Box
+                position="absolute"
+                top={{ base: "-20%", md: "-10%" }}
+                left={{ base: "-30%", md: "-5%" }}
+                w={{ base: "300px", md: "400px" }}
+                h={{ base: "300px", md: "400px" }}
+                bg="rgba(139, 92, 246, 0.15)"
+                borderRadius="full"
+                filter="blur(80px)"
+                pointerEvents="none"
+              />
+              <Box
+                position="absolute"
+                bottom={{ base: "-10%", md: "0%" }}
+                right={{ base: "-20%", md: "-5%" }}
+                w={{ base: "250px", md: "350px" }}
+                h={{ base: "250px", md: "350px" }}
+                bg="rgba(251, 191, 146, 0.2)"
+                borderRadius="full"
+                filter="blur(80px)"
+                pointerEvents="none"
+              />
+
+              {/* Glassmorphism card */}
+              <Box
+                bg="rgba(255, 255, 255, 0.7)"
+                backdropFilter="blur(20px)"
+                border="1px solid rgba(255, 255, 255, 0.8)"
+                borderRadius="2xl"
+                p={{ base: 6, md: 10 }}
+                mx={4}
+                maxW="400px"
+                w="full"
+                boxShadow="0 8px 32px rgba(0, 0, 0, 0.08)"
+                position="relative"
+                zIndex={1}
+              >
+                {/* Hero section */}
+                <Box textAlign="center" mb={8}>
+                  <Text
+                    fontSize={{ base: "2xl", md: "2xl" }}
+                    fontWeight="extrabold"
+                    color="gray.800"
+                    mb={2}
+                    letterSpacing="-0.02em"
+                  >
+                    Welcome to Live Notes ✨
+                  </Text>
+                  <Text
+                    fontSize={{ base: "sm", md: "md" }}
+                    color="#4B5563"
+                    mx="auto"
+                    lineHeight="1.6"
+                  >
+                    Real-time collaborative notes.<br />No sign-up required.
+                  </Text>
+                </Box>
+
+                {/* Glowing CTA Button */}
                 <Button
                   bg="#6366F1"
                   color="white"
                   size="lg"
+                  w="full"
                   onClick={handleCreateNote}
                   borderRadius="xl"
-                  px={8}
-                  boxShadow="0 4px 14px rgba(99, 102, 241, 0.4)"
-                  _hover={{ bg: "#4F46E5", boxShadow: "0 6px 20px rgba(99, 102, 241, 0.5)", transform: "translateY(-2px)" }}
-                  transition="all 0.2s"
+                  h={12}
+                  fontSize="md"
+                  fontWeight="semibold"
+                  boxShadow="0 10px 25px rgba(99, 102, 241, 0.35)"
+                  _hover={{
+                    bg: "#4F46E5",
+                    boxShadow: "0 14px 30px rgba(99, 102, 241, 0.45)",
+                    transform: "translateY(-2px)"
+                  }}
+                  _active={{
+                    transform: "translateY(0)",
+                    boxShadow: "0 8px 20px rgba(99, 102, 241, 0.3)"
+                  }}
+                  transition="all 0.2s ease"
                 >
                   <LuPlus /> Create Your First Note
                 </Button>
+
+                {/* Features - centered list */}
+                <VStack gap={4} mt={8} w="full">
+                  <HStack gap={3} justify="center" w="full">
+                    <Box
+                      color="#6366F1"
+                      bg="rgba(99, 102, 241, 0.1)"
+                      p={2}
+                      borderRadius="lg"
+                    >
+                      <LuUsers size={18} />
+                    </Box>
+                    <Text fontSize="sm" color="#4B5563" fontWeight="medium">
+                      Real-time collaboration
+                    </Text>
+                  </HStack>
+                  <HStack gap={3} justify="center" w="full">
+                    <Box
+                      color="#10B981"
+                      bg="rgba(16, 185, 129, 0.1)"
+                      p={2}
+                      borderRadius="lg"
+                    >
+                      <LuLink size={18} />
+                    </Box>
+                    <Text fontSize="sm" color="#4B5563" fontWeight="medium">
+                      Share instantly, no sign-up
+                    </Text>
+                  </HStack>
+                  <HStack gap={3} justify="center" w="full">
+                    <Box
+                      color="#F59E0B"
+                      bg="rgba(245, 158, 11, 0.1)"
+                      p={2}
+                      borderRadius="lg"
+                    >
+                      <LuZap size={18} />
+                    </Box>
+                    <Text fontSize="sm" color="#4B5563" fontWeight="medium">
+                      Auto-saved with history
+                    </Text>
+                  </HStack>
+                </VStack>
               </Box>
 
-              {/* Features - horizontal on desktop */}
-              <HStack
-                gap={5}
-                justify="center"
-                flexWrap={{ base: "wrap", md: "nowrap" }}
-                maxW="750px"
-              >
-                {/* Feature 1: Collaborate */}
-                <Box
-                  bg="white"
-                  p={5}
-                  borderRadius="xl"
-                  boxShadow="0 2px 12px rgba(0, 0, 0, 0.06)"
-                  flex="1"
-                  minW="200px"
-                  maxW="240px"
-                >
-                  <HStack gap={2} mb={2}>
-                    <Box color="#6366F1"><LuUsers size={18} /></Box>
-                    <Text fontWeight="semibold" fontSize="sm" color="gray.800">Collaborate</Text>
-                  </HStack>
-                  <Text fontSize="sm" color="gray.500" lineHeight="1.5">
-                    Edit together in real-time with live cursors
-                  </Text>
-                </Box>
-
-                {/* Feature 2: Share (with no sign-up mention) */}
-                <Box
-                  bg="white"
-                  p={5}
-                  borderRadius="xl"
-                  boxShadow="0 2px 12px rgba(0, 0, 0, 0.06)"
-                  flex="1"
-                  minW="200px"
-                  maxW="240px"
-                >
-                  <HStack gap={2} mb={2}>
-                    <Box color="#10B981"><LuLink size={18} /></Box>
-                    <Text fontWeight="semibold" fontSize="sm" color="gray.800">Share Instantly</Text>
-                  </HStack>
-                  <Text fontSize="sm" color="gray.500" lineHeight="1.5">
-                    Copy link and invite anyone — no sign-up needed
-                  </Text>
-                </Box>
-
-                {/* Feature 3: Never Lose Work (auto-save + history merged) */}
-                <Box
-                  bg="white"
-                  p={5}
-                  borderRadius="xl"
-                  boxShadow="0 2px 12px rgba(0, 0, 0, 0.06)"
-                  flex="1"
-                  minW="200px"
-                  maxW="240px"
-                >
-                  <HStack gap={2} mb={2}>
-                    <Box color="#F59E0B"><LuZap size={18} /></Box>
-                    <Text fontWeight="semibold" fontSize="sm" color="gray.800">Never Lose Work</Text>
-                  </HStack>
-                  <Text fontSize="sm" color="gray.500" lineHeight="1.5">
-                    Auto-saved with version history to restore anytime
-                  </Text>
-                </Box>
-              </HStack>
-
-              {/* How it works - inline */}
-              <HStack justify="center" gap={8} mt={10} color="gray.400" fontSize="sm">
+              {/* How it works - desktop only */}
+              <HStack justify="center" gap={8} mt={10} color="gray.400" fontSize="sm" display={{ base: "none", md: "flex" }}>
                 <HStack gap={2}>
                   <Box w={6} h={6} bg="gray.100" borderRadius="full" display="flex" alignItems="center" justifyContent="center" fontSize="xs" fontWeight="bold" color="gray.500">1</Box>
                   <Text>Create</Text>

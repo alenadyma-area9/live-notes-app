@@ -231,27 +231,31 @@ export function CollaborativeEditor({
 
         console.log("[Duplicate] Applying state:", state.byteLength, "bytes");
 
-        // Apply the state to the Y.Doc (this includes old title)
+        // Apply the state to the Y.Doc (this includes old title and owner)
         Y.applyUpdate(ydocRef.current, state);
 
-        // Set the NEW title in Y.Doc meta (overwrites old title)
+        // Set the NEW title and owner in Y.Doc meta (overwrites old values)
         const meta = ydocRef.current.getMap("meta");
         meta.set("title", newTitle);
         meta.set("titleEdited", "true");
+        // Reset owner to current user (the one who duplicated)
+        meta.set("ownerId", userId);
+        meta.set("ownerName", userName);
 
         // Set React state directly AND after a tick to beat any observer race
         setTitle(newTitle);
         setTimeout(() => setTitle(newTitle), 0);
 
-        // Update the store with the correct title immediately
+        // Update the store with the correct title and owner immediately
         onTitleChange?.(newTitle);
+        updateNoteOwner(noteId, userId, userName);
 
-        console.log("[Duplicate] State and title applied successfully:", newTitle);
+        console.log("[Duplicate] State, title and owner applied successfully:", newTitle, userName);
       } catch (err) {
         console.error("[Duplicate] Failed to apply duplicate state:", err);
       }
     }
-  }, [isConnected, noteId, onTitleChange]);
+  }, [isConnected, noteId, onTitleChange, userId, userName, updateNoteOwner]);
 
   useEffect(() => {
     const updateMeta = () => {
@@ -392,7 +396,7 @@ export function CollaborativeEditor({
     setLockDialogOpen(false);
   }, [titleMap, isLocked]);
 
-  const handleDuplicateConfirm = useCallback(() => {
+  const handleDuplicateConfirm = useCallback(async () => {
     if (!ydocRef.current || !onDuplicate) return;
 
     const state = Y.encodeStateAsUpdate(ydocRef.current);
@@ -405,13 +409,26 @@ export function CollaborativeEditor({
     const newNoteId = Math.random().toString(36).substring(2, 10);
     const newTitle = title ? `(copy) ${title}` : "(copy) Untitled";
 
+    // Store in sessionStorage for immediate use when navigating
     sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
       state: stateBase64,
       title: newTitle
     }));
 
+    // Also persist to server so it can be duplicated again from Home page
+    try {
+      const protocol = partykitHost.includes("localhost") ? "http" : "https";
+      await fetch(`${protocol}://${partykitHost}/parties/notes/${newNoteId}/init`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: stateBase64, title: newTitle }),
+      });
+    } catch (err) {
+      console.error("Failed to persist duplicate to server:", err);
+    }
+
     onDuplicate(newNoteId, newTitle);
-  }, [title, onDuplicate]);
+  }, [title, onDuplicate, partykitHost]);
 
   const editor = useEditor(
     {
@@ -1059,12 +1076,23 @@ export function CollaborativeEditor({
           {/* Right actions */}
           <HStack gap={1} flexShrink={0}>
             {/* Sync status */}
-            <HStack gap={1} color={isConnected ? "gray.400" : "orange.500"} fontSize="xs" mr={1}>
-              <LuCloud size={14} />
-              <Text whiteSpace="nowrap">
-                {isConnected ? "Synced" : "Offline"}
-              </Text>
-            </HStack>
+            <Tooltip.Root openDelay={100} closeDelay={50}>
+              <Tooltip.Trigger asChild>
+                <HStack gap={1} color={isConnected ? "gray.400" : "orange.500"} fontSize="xs" mr={1} cursor="help">
+                  <LuCloud size={14} />
+                  <Text whiteSpace="nowrap">
+                    {isConnected ? "Synced" : "Offline"}
+                  </Text>
+                </HStack>
+              </Tooltip.Trigger>
+              <Tooltip.Positioner>
+                <Tooltip.Content>
+                  {isConnected
+                    ? "Changes sync instantly with all collaborators"
+                    : "Reconnecting... Changes will sync when online"}
+                </Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
 
             {/* Save Version */}
             <Tooltip.Root openDelay={100} closeDelay={50}>
@@ -1392,20 +1420,32 @@ export function CollaborativeEditor({
 
         {/* Mobile Sync Status Footer */}
         {isMobile && viewMode === "editing" && (
-          <HStack
-            px={4}
-            py={2}
-            bg="gray.50"
-            borderTop="1px solid"
-            borderColor="gray.100"
-            justify="center"
-            gap={1}
-          >
-            <LuCloud size={14} color={isConnected ? "#9CA3AF" : "#F97316"} />
-            <Text fontSize="xs" color={isConnected ? "gray.400" : "orange.500"}>
-              {isConnected ? "Synced" : "Offline"}
-            </Text>
-          </HStack>
+          <Tooltip.Root openDelay={100} closeDelay={50}>
+            <Tooltip.Trigger asChild>
+              <HStack
+                px={4}
+                py={2}
+                bg="gray.50"
+                borderTop="1px solid"
+                borderColor="gray.100"
+                justify="center"
+                gap={1}
+                cursor="help"
+              >
+                <LuCloud size={14} color={isConnected ? "#9CA3AF" : "#F97316"} />
+                <Text fontSize="xs" color={isConnected ? "gray.400" : "orange.500"}>
+                  {isConnected ? "Synced" : "Offline"}
+                </Text>
+              </HStack>
+            </Tooltip.Trigger>
+            <Tooltip.Positioner>
+              <Tooltip.Content>
+                {isConnected
+                  ? "Changes sync instantly with all collaborators"
+                  : "Reconnecting... Changes will sync when online"}
+              </Tooltip.Content>
+            </Tooltip.Positioner>
+          </Tooltip.Root>
         )}
         </Box>
 
