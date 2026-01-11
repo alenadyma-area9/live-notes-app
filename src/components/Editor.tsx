@@ -10,6 +10,8 @@ import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
 import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical } from "react-icons/lu";
@@ -216,7 +218,6 @@ export function CollaborativeEditor({
     const duplicateData = sessionStorage.getItem(duplicateKey);
 
     if (duplicateData) {
-      console.log("[Duplicate] Found pending duplicate data for", noteId);
       sessionStorage.removeItem(duplicateKey);
 
       try {
@@ -228,8 +229,6 @@ export function CollaborativeEditor({
         for (let i = 0; i < binary.length; i++) {
           state[i] = binary.charCodeAt(i);
         }
-
-        console.log("[Duplicate] Applying state:", state.byteLength, "bytes");
 
         // Apply the state to the Y.Doc (this includes old title and owner)
         Y.applyUpdate(ydocRef.current, state);
@@ -249,10 +248,8 @@ export function CollaborativeEditor({
         // Update the store with the correct title and owner immediately
         onTitleChange?.(newTitle);
         updateNoteOwner(noteId, userId, userName);
-
-        console.log("[Duplicate] State, title and owner applied successfully:", newTitle, userName);
       } catch (err) {
-        console.error("[Duplicate] Failed to apply duplicate state:", err);
+        console.error("Failed to apply duplicate state:", err);
       }
     }
   }, [isConnected, noteId, onTitleChange, userId, userName, updateNoteOwner]);
@@ -407,7 +404,10 @@ export function CollaborativeEditor({
     const stateBase64 = btoa(binary);
 
     const newNoteId = Math.random().toString(36).substring(2, 10);
-    const newTitle = title ? `(copy) ${title}` : "(copy) Untitled";
+    const formatDateTime = () => new Date().toLocaleDateString(undefined, {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+    });
+    const newTitle = title ? `(copy) ${title}` : `(copy) Untitled ${formatDateTime()}`;
 
     // Store in sessionStorage for immediate use when navigating
     sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
@@ -464,6 +464,10 @@ export function CollaborativeEditor({
             rel: 'noopener noreferrer',
           },
         }),
+        TaskList,
+        TaskItem.configure({
+          nested: true,
+        }),
         Placeholder.configure({
           placeholder: 'Start typing your thoughts...',
         }),
@@ -473,8 +477,13 @@ export function CollaborativeEditor({
           class: "prose prose-sm sm:prose lg:prose-lg xl:prose-xl focus:outline-none",
         },
       },
-      onUpdate: () => {
-        registerUser();
+      onTransaction: ({ transaction }) => {
+        // Only register user for local changes, not for sync from other users
+        // y-sync$ meta is set when the change comes from Y.js sync
+        const isRemoteChange = transaction.getMeta('y-sync$');
+        if (!isRemoteChange && transaction.docChanged) {
+          registerUser();
+        }
       },
     },
     [provider, userName, userColor, registerUser]
@@ -526,13 +535,9 @@ export function CollaborativeEditor({
   useEffect(() => {
     if (!autoDuplicate || !isConnected || !isUserRegistered || !ydocRef.current || !onDuplicate) return;
 
-    console.log("[AutoDuplicate] Starting auto-duplicate...");
-
     // Small delay to ensure doc is synced
     const timeout = setTimeout(() => {
-      console.log("[AutoDuplicate] Step 1: Encoding state...");
       const state = Y.encodeStateAsUpdate(ydocRef.current!);
-      console.log("[AutoDuplicate] Step 1: State size:", state.byteLength, "bytes");
 
       let binary = "";
       for (let i = 0; i < state.byteLength; i++) {
@@ -544,17 +549,12 @@ export function CollaborativeEditor({
       const currentTitle = titleMap.get("title") as string || "";
       const newTitle = currentTitle ? `(copy) ${currentTitle}` : "(copy) Untitled";
 
-      console.log("[AutoDuplicate] Step 2: New note ID:", newNoteId);
-      console.log("[AutoDuplicate] Step 2: New title:", newTitle);
-
       // Store in sessionStorage for the new note to pick up
       sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
         state: stateBase64,
         title: newTitle
       }));
-      console.log("[AutoDuplicate] Step 3: Stored in sessionStorage");
 
-      console.log("[AutoDuplicate] Step 4: Navigating to new note");
       onDuplicate(newNoteId, newTitle);
     }, 500);
 
@@ -785,14 +785,19 @@ export function CollaborativeEditor({
         height: 0,
         pointerEvents: "none",
       },
-      "& p": { margin: "0.75em 0", lineHeight: "1.7" },
-      "& h1": { fontSize: "1.5rem", fontWeight: "600", margin: "1em 0 0.5em", lineHeight: "1.3" },
-      "& h2": { fontSize: "1.2rem", fontWeight: "600", margin: "1em 0 0.5em", lineHeight: "1.4" },
+      "& p": { margin: "0.5em 0", lineHeight: "1.7" },
+      "& p:first-child": { marginTop: 0 },
+      "& h1": { fontSize: "1.5rem", fontWeight: "600", margin: "0.75em 0 0.4em", lineHeight: "1.3" },
+      "& h1:first-child": { marginTop: 0 },
+      "& h2": { fontSize: "1.2rem", fontWeight: "600", margin: "0.75em 0 0.4em", lineHeight: "1.4" },
+      "& h2:first-child": { marginTop: 0 },
       "& strong, & b": { fontWeight: "600" },
       "& em, & i": { fontStyle: "italic" },
       "& s, & strike": { textDecoration: "line-through" },
-      "& ul": { paddingLeft: "1.5em", margin: "0.75em 0", listStyleType: "disc", lineHeight: "1.7" },
-      "& ol": { paddingLeft: "1.5em", margin: "0.75em 0", listStyleType: "decimal", lineHeight: "1.7" },
+      "& ul": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "disc", lineHeight: "1.7" },
+      "& ul:first-child": { marginTop: 0 },
+      "& ol": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "decimal", lineHeight: "1.7" },
+      "& ol:first-child": { marginTop: 0 },
       "& li": { margin: "0.25em 0", display: "list-item" },
       "& li p": { margin: "0" },
       "& img": {
@@ -817,6 +822,41 @@ export function CollaborativeEditor({
         cursor: "pointer",
         "&:hover": {
           color: "#4F46E5",
+        },
+      },
+      "& ul[data-type='taskList']": {
+        listStyle: "none",
+        padding: 0,
+        margin: "0.5em 0",
+        "&:first-child": { marginTop: 0 },
+        "& li": {
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "0.5em",
+          margin: "0.35em 0",
+          "& > label": {
+            flexShrink: 0,
+            marginTop: "0.15em",
+            "& input[type='checkbox']": {
+              width: "18px",
+              height: "18px",
+              cursor: "pointer",
+              accentColor: "#6366F1",
+              borderRadius: "4px",
+            },
+          },
+          "& > div": {
+            flex: 1,
+            "& p": {
+              margin: 0,
+            },
+          },
+        },
+        "& li[data-checked='true']": {
+          "& > div": {
+            textDecoration: "line-through",
+            color: "#9CA3AF",
+          },
         },
       },
     },
@@ -1342,7 +1382,7 @@ export function CollaborativeEditor({
         {/* Content area */}
         <Box flex={1} overflow="auto">
           {viewMode === "editing" && (
-            <Box p={{ base: 5, md: 4 }} css={editorStyles}>
+            <Box p={{ base: 4, md: 4 }} pt={{ base: 3, md: 3 }} css={editorStyles}>
               {editor && (
                 <BubbleMenu
                   editor={editor}
@@ -1580,6 +1620,8 @@ function PreviewContent({ doc, styles }: { doc: Y.Doc; styles: Record<string, un
         autolink: false,
         HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' },
       }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
     ],
     editable: false,
   }, [doc]);

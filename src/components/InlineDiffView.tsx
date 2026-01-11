@@ -3,8 +3,9 @@ import * as Y from "yjs";
 import type { ReactNode } from "react";
 
 interface Block {
-  type: "paragraph" | "heading1" | "heading2" | "bulletList" | "orderedList";
+  type: "paragraph" | "heading1" | "heading2" | "bulletList" | "orderedList" | "taskList";
   content: FormattedSegment[];
+  checked?: boolean; // For task list items
 }
 
 interface FormattedSegment {
@@ -46,7 +47,8 @@ export function extractBlocksFromDoc(doc: Y.Doc): Block[] {
 function extractBlocksFromXml(
   element: Y.XmlFragment | Y.XmlElement,
   blocks: Block[],
-  listType?: "bulletList" | "orderedList"
+  listType?: "bulletList" | "orderedList" | "taskList",
+  taskChecked?: boolean
 ): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const children = (element as any).toArray?.() || [];
@@ -57,7 +59,11 @@ function extractBlocksFromXml(
 
       if (tagName === "paragraph") {
         const content = getFormattedContent(child);
-        blocks.push({ type: "paragraph", content });
+        if (listType === "taskList") {
+          blocks.push({ type: "taskList", content, checked: taskChecked });
+        } else {
+          blocks.push({ type: "paragraph", content });
+        }
       } else if (tagName === "heading") {
         const level = child.getAttribute("level");
         const content = getFormattedContent(child);
@@ -69,6 +75,11 @@ function extractBlocksFromXml(
         extractBlocksFromXml(child, blocks, "bulletList");
       } else if (tagName === "orderedList") {
         extractBlocksFromXml(child, blocks, "orderedList");
+      } else if (tagName === "taskList") {
+        extractBlocksFromXml(child, blocks, "taskList");
+      } else if (tagName === "taskItem") {
+        const checked = child.getAttribute("checked") === "true" || child.getAttribute("checked") === true;
+        extractBlocksFromXml(child, blocks, "taskList", checked);
       } else if (tagName === "listItem") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const listChildren = (child as any).toArray?.() || [];
@@ -82,7 +93,7 @@ function extractBlocksFromXml(
           }
         }
       } else {
-        extractBlocksFromXml(child, blocks, listType);
+        extractBlocksFromXml(child, blocks, listType, taskChecked);
       }
     }
   }
@@ -137,6 +148,8 @@ interface DiffBlock {
   type: Block["type"];
   status: "unchanged" | "modified" | "added" | "removed" | "style-only";
   segments: DiffSegment[];
+  checked?: boolean; // For task list items
+  oldChecked?: boolean; // For showing checkbox state change
 }
 
 function computeSegmentDiff(oldSegments: FormattedSegment[], newSegments: FormattedSegment[]): { segments: DiffSegment[]; isStyleOnly: boolean } {
@@ -150,7 +163,6 @@ function computeSegmentDiff(oldSegments: FormattedSegment[], newSegments: Format
     let hasAnyStyleChange = false;
 
     // Flatten to character-level comparison
-    let oldPos = 0;
     let newPos = 0;
     let oldSegIdx = 0;
     let newSegIdx = 0;
@@ -184,7 +196,6 @@ function computeSegmentDiff(oldSegments: FormattedSegment[], newSegments: Format
         });
       }
 
-      oldPos++;
       newPos++;
       oldCharInSeg++;
       newCharInSeg++;
@@ -406,16 +417,24 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
 
       const sameText = oldText === newText;
       const sameType = oldBlock.type === newBlock.type;
+      const sameChecked = oldBlock.checked === newBlock.checked;
 
       if (sameText && sameType) {
         // Check for inline style changes
         const { segments, isStyleOnly } = computeSegmentDiff(oldBlock.content, newBlock.content);
         const hasStyleChanges = segments.some(s => s.type === "style-changed");
 
+        // Check if checkbox state changed (for task lists)
+        const checkboxChanged = oldBlock.type === "taskList" && !sameChecked;
+
         result.push({
           type: newBlock.type,
-          status: hasStyleChanges || isStyleOnly ? "style-only" : "unchanged",
-          segments,
+          status: hasStyleChanges || isStyleOnly || checkboxChanged ? "style-only" : "unchanged",
+          segments: checkboxChanged
+            ? newBlock.content.map(s => ({ type: "style-changed" as const, segment: s }))
+            : segments,
+          checked: newBlock.checked,
+          oldChecked: checkboxChanged ? oldBlock.checked : undefined,
         });
       } else if (sameText && !sameType) {
         // Block type changed (paragraph → heading)
@@ -423,6 +442,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
           type: newBlock.type,
           status: "style-only",
           segments: newBlock.content.map(s => ({ type: "style-changed" as const, segment: s })),
+          checked: newBlock.checked,
         });
       } else {
         // Text changed
@@ -431,6 +451,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
           type: newBlock.type,
           status: "modified",
           segments,
+          checked: newBlock.checked,
         });
       }
     } else {
@@ -439,6 +460,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
         type: newBlock.type,
         status: "added",
         segments: newBlock.content.map(s => ({ type: "added" as const, segment: s })),
+        checked: newBlock.checked,
       });
     }
   }
@@ -450,6 +472,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
         type: oldBlocks[o].type,
         status: "removed",
         segments: oldBlocks[o].content.map(s => ({ type: "removed" as const, segment: s })),
+        checked: oldBlocks[o].checked,
       });
     }
   }
@@ -564,6 +587,43 @@ function DiffBlockView({ block, listIndex }: { block: DiffBlock; listIndex?: num
           <Box flex={1}>{content}</Box>
         </HStack>
       );
+    case "taskList": {
+      // Show checkbox state change with visual indicator
+      const checkboxChanged = block.oldChecked !== undefined;
+      const checkboxBg = checkboxChanged ? "orange.100" : undefined;
+      return (
+        <HStack py={1} align="start" pl={4} {...borderProps}>
+          <Box
+            as="span"
+            mr={2}
+            display="inline-flex"
+            alignItems="center"
+            bg={checkboxBg}
+            borderRadius="sm"
+            px={checkboxChanged ? 1 : 0}
+          >
+            <input
+              type="checkbox"
+              checked={block.checked || false}
+              readOnly
+              style={{
+                accentColor: "#6366F1",
+                width: "16px",
+                height: "16px",
+                cursor: "default"
+              }}
+            />
+          </Box>
+          <Box
+            flex={1}
+            textDecoration={block.checked ? "line-through" : undefined}
+            color={block.checked ? "gray.500" : undefined}
+          >
+            {content}
+          </Box>
+        </HStack>
+      );
+    }
     default:
       return (
         <Box py={1} {...borderProps}>
@@ -585,6 +645,7 @@ export function InlineDiffView({ oldDoc, newDoc, oldVersion, newVersion }: Inlin
 
   let bulletIndex = 0;
   let orderedIndex = 0;
+  let taskIndex = 0;
 
   return (
     <VStack align="stretch" gap={0}>
@@ -621,9 +682,14 @@ export function InlineDiffView({ oldDoc, newDoc, oldVersion, newVersion }: Inlin
                 if (prevBlock?.type !== "orderedList") orderedIndex = 0;
                 return <DiffBlockView key={idx} block={block} listIndex={orderedIndex++} />;
               }
+              if (block.type === "taskList") {
+                if (prevBlock?.type !== "taskList") taskIndex = 0;
+                return <DiffBlockView key={idx} block={block} listIndex={taskIndex++} />;
+              }
 
               bulletIndex = 0;
               orderedIndex = 0;
+              taskIndex = 0;
               return <DiffBlockView key={idx} block={block} />;
             })}
           </VStack>

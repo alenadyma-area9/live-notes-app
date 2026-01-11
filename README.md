@@ -1,32 +1,52 @@
 # Live Notes
 
-Real-time collaborative note-taking app. Create, edit, and share notes instantly with anyone.
+A real-time collaborative note-taking app. Create, edit, and share notes instantly with anyone — no sign-up required.
 
 **Live Demo:** https://live-notes-app-sage.vercel.app/
 
 ## Features
 
-- ✅ **Real-time collaboration** - Multiple users edit simultaneously
-- ✅ **No sign-up required** - Share a link, start collaborating
-- ✅ **Rich text editing** - Bold, italic, headings, lists, colors, highlights
-- ✅ **Live cursors** - See where others are typing
-- ✅ **Online presence** - See who's currently editing
-- ✅ **Note titles** - Name your notes, synced across collaborators
-- ✅ **Recent notes** - Quick access to your recently visited notes
-- ✅ **Version history** - View and restore previous versions
-- ✅ **Duplicate notes** - Create copies of existing notes
-- ✅ **Clickable links** - Auto-detect URLs with preview bubble
-- ✅ **Lock notes** - Restrict access to owner only (others see "locked" message)
+### Collaboration
+- ✅ **Real-time editing** — Multiple users edit simultaneously with conflict-free sync
+- ✅ **Live cursors** — See where collaborators are typing in real-time
+- ✅ **Online presence** — View who's currently in the document
+- ✅ **No sign-up required** — Share a link and start collaborating instantly
+
+### Rich Text Editing
+- ✅ **Text formatting** — Bold, italic, strikethrough
+- ✅ **Headings** — H1 and H2 support
+- ✅ **Lists** — Bullet lists, numbered lists, and checkbox/task lists
+- ✅ **Colors** — Text color and highlight colors
+- ✅ **Links** — Clickable URLs with edit bubble menu
+- ✅ **Images** — Embed images (base64, up to 5MB)
+
+### Note Management
+- ✅ **Auto-save** — Changes saved automatically
+- ✅ **Version history** — View, compare (diff), and restore previous versions
+- ✅ **Duplicate notes** — Create copies from editor or home page
+- ✅ **Lock notes** — Restrict access to owner only
+- ✅ **Delete notes** — Permanent deletion with confirmation
+- ✅ **Recent notes** — Quick access with search, filter, and sort
+
+### User Experience
+- ✅ **Mobile responsive** — Optimized UI for all screen sizes
+- ✅ **Sync indicator** — Shows connection status with tooltips
+- ✅ **List/Grid view** — Toggle between view modes on home page
+- ✅ **Keyboard shortcuts** — Standard formatting shortcuts (Ctrl+B, etc.)
 
 ## Tech Stack
 
-- **Frontend:** React 19, TypeScript, Vite, Chakra UI v3
-- **Editor:** Tiptap v2 with Yjs CRDT
-- **Real-time:** PartyKit + y-partykit
-- **State:** Zustand with localStorage persistence
-- **Hosting:** Vercel (frontend) + PartyKit Cloud (WebSocket)
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 19, TypeScript, Vite |
+| UI | Chakra UI v3, react-icons |
+| Editor | TipTap v2 (ProseMirror) |
+| Real-time | Yjs CRDT + y-partykit |
+| Backend | PartyKit (WebSocket server) |
+| State | Zustand with localStorage |
+| Hosting | Vercel (frontend) + PartyKit Cloud (WebSocket) |
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
@@ -36,81 +56,116 @@ Real-time collaborative note-taking app. Create, edit, and share notes instantly
 ### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/user/live-notes-app.git
+cd live-notes-app
+
+# Install dependencies
 npm install
 ```
 
 ### Development
 
-Run both servers in separate terminals:
+Run both servers concurrently:
 
-**Terminal 1 - Frontend:**
 ```bash
-npm run dev
+npm run dev:all
 ```
 
-**Terminal 2 - PartyKit:**
+Or run them separately in two terminals:
+
 ```bash
+# Terminal 1 - Frontend (Vite)
+npm run dev
+
+# Terminal 2 - Backend (PartyKit)
 npm run dev:party
 ```
 
-Open http://localhost:5173
+Open http://localhost:5173 in your browser.
 
-### Scripts
+### Available Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start Vite dev server |
-| `npm run dev:party` | Start PartyKit dev server |
-| `npm run build` | Build for production |
+| `npm run dev` | Start Vite dev server (port 5173) |
+| `npm run dev:party` | Start PartyKit dev server (port 1999) |
+| `npm run dev:all` | Start both servers concurrently |
+| `npm run build` | Build frontend for production |
 | `npm run check` | TypeScript type checking |
 | `npm run lint` | Run ESLint |
+| `npm run preview` | Preview production build |
 
 ## Deployment
 
-### Automatic (Recommended)
+### PartyKit (WebSocket Server)
 
-GitHub is connected to Vercel - every `git push` auto-deploys the frontend.
-
-### Manual
-
-**PartyKit (WebSocket Server):**
 ```bash
 npx partykit login
 npx partykit deploy
 ```
 
-**Frontend (Vercel):**
+### Frontend (Vercel)
+
+The repository is configured for automatic Vercel deployments. Push to `main` to deploy.
+
+For manual deployment:
 ```bash
 vercel --prod
 ```
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_PARTYKIT_HOST` | PartyKit server URL | `localhost:1999` |
+Create `.env` for local development:
 
-Production value: `live-notes-app.alenadyma-area9.partykit.dev`
+```env
+VITE_PARTYKIT_HOST=localhost:1999
+```
+
+For production (`.env.production`):
+
+```env
+VITE_PARTYKIT_HOST=your-app.username.partykit.dev
+```
 
 ## Project Structure
 
 ```
-src/
-├── components/     # React components
-│   ├── Editor.tsx          # Collaborative Tiptap editor
-│   ├── Toolbar.tsx         # Formatting toolbar
-│   └── CollaboratorsList.tsx
-├── pages/          # Route pages
-│   ├── Home.tsx
-│   └── NotePage.tsx
-├── store/          # Zustand store
-├── types/          # TypeScript types
-└── utils/          # Helper functions
-
-party/              # PartyKit server
-├── index.ts        # Yjs collaboration server
-└── main.ts         # Main entry point
+├── src/
+│   ├── components/
+│   │   ├── Editor.tsx           # Main collaborative editor
+│   │   ├── Toolbar.tsx          # Formatting toolbar
+│   │   ├── HistoryPanel.tsx     # Version history sidebar
+│   │   ├── InlineDiffView.tsx   # Version comparison diff
+│   │   ├── CollaboratorsList.tsx # Online users display
+│   │   └── ConfirmDialog.tsx    # Reusable dialog component
+│   ├── pages/
+│   │   ├── Home.tsx             # Home page with note list
+│   │   └── NotePage.tsx         # Note editor page
+│   ├── store/
+│   │   └── index.ts             # Zustand store
+│   └── main.tsx                 # App entry point
+├── party/
+│   └── index.ts                 # PartyKit server (Yjs sync + REST API)
+├── public/
+│   └── favicon.svg              # App favicon
+└── package.json
 ```
+
+## API Endpoints (PartyKit)
+
+The PartyKit server exposes REST endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/parties/notes/:id` | WebSocket | Real-time Yjs sync |
+| `/parties/notes/:id/versions` | GET | List version history |
+| `/parties/notes/:id/version/:vid` | GET | Get specific version |
+| `/parties/notes/:id/restore/:vid` | POST | Restore version |
+| `/parties/notes/:id/state` | GET | Get current document state |
+| `/parties/notes/:id/init` | POST | Initialize note with state |
+| `/parties/notes/:id/lock` | POST | Toggle lock status |
+| `/parties/notes/:id/delete` | POST | Delete note |
 
 ## License
 

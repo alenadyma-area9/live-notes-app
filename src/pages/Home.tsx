@@ -160,8 +160,10 @@ export function Home() {
     if (!pendingActionNoteId) return;
 
     const note = recentNotes.find(n => n.id === pendingActionNoteId);
-    const noteTitle = note?.title || "Untitled";
-    const newTitle = `(copy) ${noteTitle}`;
+    const noteTitle = note?.title;
+    // Check if it's an "untitled" note (empty, or matches "Note {id}" pattern)
+    const isUntitled = !noteTitle || noteTitle === `Note ${pendingActionNoteId}`;
+    const newTitle = isUntitled ? "(copy) Untitled" : `(copy) ${noteTitle}`;
     const newNoteId = generateNoteId();
 
     setIsDuplicating(true);
@@ -171,29 +173,31 @@ export function Home() {
       const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
       const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/state`);
 
+      let stateToUse: string | null = null;
+
       if (res.ok) {
         const data = await res.json();
-
-        // Store in sessionStorage for the new note to pick up when opened
-        sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
-          state: data.state,
-          title: newTitle
-        }));
-
-        // Also persist to server so it can be duplicated again from Home page
-        await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state: data.state, title: newTitle }),
-        });
-
-        // Add to recent notes immediately with the new title
-        addRecentNote(newNoteId, newTitle, true);
-
-        showToast(`Created "${newTitle}"`, "success");
-      } else {
-        showToast("Failed to duplicate note - please open it first", "info");
+        stateToUse = data.state;
       }
+      // If no state on server, that's fine - we'll create an empty duplicate
+
+      // Store in sessionStorage for the new note to pick up when opened
+      sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+        state: stateToUse,
+        title: newTitle
+      }));
+
+      // Also persist to server so it can be duplicated again from Home page
+      await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: stateToUse, title: newTitle }),
+      });
+
+      // Add to recent notes immediately with the new title
+      addRecentNote(newNoteId, newTitle, true);
+
+      showToast(`Created "${newTitle}"`, "success");
     } catch (err) {
       console.error("Failed to duplicate:", err);
       showToast("Failed to duplicate note", "info");
@@ -305,14 +309,16 @@ export function Home() {
           return b.lastVisited - a.lastVisited;
         case "created":
           return (b.createdAt || b.lastVisited) - (a.createdAt || a.lastVisited);
-        case "title":
+        case "title": {
           const titleA = getDisplayTitle(a.title, a.id).toLowerCase();
           const titleB = getDisplayTitle(b.title, b.id).toLowerCase();
           return titleA.localeCompare(titleB);
-        case "author":
+        }
+        case "author": {
           const authorA = a.ownerName || "zzz"; // Put notes without author at end
           const authorB = b.ownerName || "zzz";
           return authorA.localeCompare(authorB);
+        }
         default:
           return 0;
       }
@@ -412,9 +418,9 @@ export function Home() {
                 border="1px solid rgba(255, 255, 255, 0.8)"
                 borderRadius="2xl"
                 p={{ base: 6, md: 10 }}
-                mx={4}
+                mx={{ base: 6, md: 4 }}
                 maxW="400px"
-                w="full"
+                w={{ base: "calc(100% - 48px)", md: "full" }}
                 boxShadow="0 8px 32px rgba(0, 0, 0, 0.08)"
                 position="relative"
                 zIndex={1}

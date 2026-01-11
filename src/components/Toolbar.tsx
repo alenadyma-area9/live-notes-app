@@ -11,6 +11,7 @@ import {
   LuRemoveFormatting,
   LuImage,
   LuLink,
+  LuSquareCheck,
 } from "react-icons/lu";
 import { useRef, useState } from "react";
 import { AlertDialog, InputDialog } from "./ConfirmDialog";
@@ -425,6 +426,21 @@ export function Toolbar({ editor }: ToolbarProps) {
           </Menu.Positioner>
         </Menu.Root>
 
+        {/* Task List - Own group, always visible on mobile */}
+        <TooltipButton label="Checkbox List">
+          <IconButton
+            aria-label="Checkbox List"
+            onClick={() => editor.chain().focus().toggleTaskList().run()}
+            variant="ghost"
+            bg={isActiveButton("taskList") ? "#EEF2FF" : undefined}
+            color={isActiveButton("taskList") ? "#4F46E5" : "gray.600"}
+            _hover={{ bg: isActiveButton("taskList") ? "#E0E7FF" : "gray.100" }}
+            size="sm"
+          >
+            <LuSquareCheck size={14} />
+          </IconButton>
+        </TooltipButton>
+
         {/* Link */}
         <TooltipButton label={editor.isActive("link") ? "Edit Link" : "Add Link"}>
           <IconButton
@@ -594,6 +610,23 @@ export function Toolbar({ editor }: ToolbarProps) {
           size="sm"
         >
           <LuListOrdered />
+        </IconButton>
+      </TooltipButton>
+
+      <Separator />
+
+      {/* Task List - Own group */}
+      <TooltipButton label="Checkbox List (Ctrl+Shift+9)">
+        <IconButton
+          aria-label="Checkbox List"
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          variant="ghost"
+          bg={isActiveButton("taskList") ? "#EEF2FF" : undefined}
+          color={isActiveButton("taskList") ? "#4F46E5" : "gray.600"}
+          _hover={{ bg: isActiveButton("taskList") ? "#E0E7FF" : "gray.100" }}
+          size="sm"
+        >
+          <LuSquareCheck />
         </IconButton>
       </TooltipButton>
 

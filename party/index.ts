@@ -327,7 +327,6 @@ export default class YjsServer implements Party.Server {
     const IDLE_THRESHOLD = 60000;      // 60 seconds idle before saving
     const MIN_CHAR_CHANGE = 20;        // Minimum 20 chars changed
     const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
-    const MIN_TIME_BETWEEN = 30000;    // Minimum 30 seconds between versions
 
     // Get text content for character counting
     const xmlFragment = ydoc.getXmlFragment("default");
@@ -365,11 +364,7 @@ export default class YjsServer implements Party.Server {
     }
 
     // Track editing activity
-    const lastActivity = await this.room.storage.get<number>("lastActivity") || now;
     const lastSavedLength = await this.room.storage.get<number>("lastSavedLength") || 0;
-
-    // Update last activity time
-    await this.room.storage.put("lastActivity", now);
 
     // Check if enough time has passed since last version
     const lastVersionSave = await this.room.storage.get<number>("lastVersionSave") || 0;
