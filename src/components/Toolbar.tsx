@@ -1,4 +1,4 @@
-import { HStack, IconButton, Box, Menu, Text, Tooltip, useBreakpointValue } from "@chakra-ui/react";
+import { HStack, IconButton, Box, Menu, Text, Tooltip, useBreakpointValue, Portal } from "@chakra-ui/react";
 import { Editor } from "@tiptap/react";
 import {
   LuItalic,
@@ -42,15 +42,17 @@ function TooltipButton({
   children: React.ReactNode;
 }) {
   return (
-    <Tooltip.Root openDelay={100} closeDelay={50}>
+    <Tooltip.Root openDelay={100} closeDelay={50} positioning={{ placement: "top" }}>
       <Tooltip.Trigger asChild>
         {children}
       </Tooltip.Trigger>
-      <Tooltip.Positioner>
-        <Tooltip.Content>
-          {label}
-        </Tooltip.Content>
-      </Tooltip.Positioner>
+      <Portal>
+        <Tooltip.Positioner>
+          <Tooltip.Content>
+            {label}
+          </Tooltip.Content>
+        </Tooltip.Positioner>
+      </Portal>
     </Tooltip.Root>
   );
 }
@@ -65,14 +67,14 @@ const TEXT_COLORS = [
   { name: "Purple", color: "#9333EA", displayColor: "#9333EA" },
 ];
 
-// Highlight colors - neon marker colors (slightly muted for readability)
+// Highlight colors - soft pastel colors for readability
 const HIGHLIGHT_COLORS = [
   { name: "None", color: null },
-  { name: "Yellow", color: "#FFFF66" },
-  { name: "Green", color: "#99FF66" },
-  { name: "Pink", color: "#FF99FF" },
-  { name: "Blue", color: "#66FFFF" },
-  { name: "Orange", color: "#FFCC66" },
+  { name: "Yellow", color: "#FEF9C3" },
+  { name: "Green", color: "#D1FAE5" },
+  { name: "Pink", color: "#FCE7F3" },
+  { name: "Blue", color: "#CFFAFE" },
+  { name: "Orange", color: "#FED7AA" },
 ];
 
 export function Toolbar({ editor }: ToolbarProps) {
@@ -157,49 +159,51 @@ export function Toolbar({ editor }: ToolbarProps) {
               <Text fontSize="xs" fontWeight="semibold">Aa</Text>
             </IconButton>
           </Menu.Trigger>
-          <Menu.Positioner>
-            <Menu.Content minW="140px">
-              <Menu.Item
-                value="bold"
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                bg={isActiveItem("bold") ? "#EEF2FF" : undefined}
-              >
-                <HStack gap={2} justify="space-between" w="full">
-                  <HStack gap={2}>
-                    <Text fontWeight="black">B</Text>
-                    <Text fontSize="sm">Bold</Text>
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content minW="140px">
+                <Menu.Item
+                  value="bold"
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                  bg={isActiveItem("bold") ? "#EEF2FF" : undefined}
+                >
+                  <HStack gap={2} justify="space-between" w="full">
+                    <HStack gap={2}>
+                      <Text fontWeight="black">B</Text>
+                      <Text fontSize="sm">Bold</Text>
+                    </HStack>
+                    {isActiveItem("bold") && <Text color="#6366F1">✓</Text>}
                   </HStack>
-                  {isActiveItem("bold") && <Text color="#6366F1">✓</Text>}
-                </HStack>
-              </Menu.Item>
-              <Menu.Item
-                value="italic"
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                bg={isActiveItem("italic") ? "#EEF2FF" : undefined}
-              >
-                <HStack gap={2} justify="space-between" w="full">
-                  <HStack gap={2}>
-                    <LuItalic />
-                    <Text fontSize="sm">Italic</Text>
+                </Menu.Item>
+                <Menu.Item
+                  value="italic"
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                  bg={isActiveItem("italic") ? "#EEF2FF" : undefined}
+                >
+                  <HStack gap={2} justify="space-between" w="full">
+                    <HStack gap={2}>
+                      <LuItalic />
+                      <Text fontSize="sm">Italic</Text>
+                    </HStack>
+                    {isActiveItem("italic") && <Text color="#6366F1">✓</Text>}
                   </HStack>
-                  {isActiveItem("italic") && <Text color="#6366F1">✓</Text>}
-                </HStack>
-              </Menu.Item>
-              <Menu.Item
-                value="strikethrough"
-                onClick={() => editor.chain().focus().toggleStrike().run()}
-                bg={isActiveItem("strike") ? "#EEF2FF" : undefined}
-              >
-                <HStack gap={2} justify="space-between" w="full">
-                  <HStack gap={2}>
-                    <LuStrikethrough />
-                    <Text fontSize="sm">Strikethrough</Text>
+                </Menu.Item>
+                <Menu.Item
+                  value="strikethrough"
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                  bg={isActiveItem("strike") ? "#EEF2FF" : undefined}
+                >
+                  <HStack gap={2} justify="space-between" w="full">
+                    <HStack gap={2}>
+                      <LuStrikethrough />
+                      <Text fontSize="sm">Strikethrough</Text>
+                    </HStack>
+                    {isActiveItem("strike") && <Text color="#6366F1">✓</Text>}
                   </HStack>
-                  {isActiveItem("strike") && <Text color="#6366F1">✓</Text>}
-                </HStack>
-              </Menu.Item>
-            </Menu.Content>
-          </Menu.Positioner>
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
         </Menu.Root>
 
         {/* Headings Group */}
@@ -214,36 +218,38 @@ export function Toolbar({ editor }: ToolbarProps) {
               <Text fontSize="xs" fontWeight="bold">H</Text>
             </IconButton>
           </Menu.Trigger>
-          <Menu.Positioner>
-            <Menu.Content minW="140px">
-              <Menu.Item
-                value="h1"
-                onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                bg={isActiveItem("heading", { level: 1 }) ? "#EEF2FF" : undefined}
-              >
-                <HStack gap={2} justify="space-between" w="full">
-                  <HStack gap={2}>
-                    <LuHeading1 />
-                    <Text fontSize="sm">Heading 1</Text>
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content minW="140px">
+                <Menu.Item
+                  value="h1"
+                  onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                  bg={isActiveItem("heading", { level: 1 }) ? "#EEF2FF" : undefined}
+                >
+                  <HStack gap={2} justify="space-between" w="full">
+                    <HStack gap={2}>
+                      <LuHeading1 />
+                      <Text fontSize="sm">Heading 1</Text>
+                    </HStack>
+                    {isActiveItem("heading", { level: 1 }) && <Text color="#6366F1">✓</Text>}
                   </HStack>
-                  {isActiveItem("heading", { level: 1 }) && <Text color="#6366F1">✓</Text>}
-                </HStack>
-              </Menu.Item>
-              <Menu.Item
-                value="h2"
-                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                bg={isActiveItem("heading", { level: 2 }) ? "#EEF2FF" : undefined}
-              >
-                <HStack gap={2} justify="space-between" w="full">
-                  <HStack gap={2}>
-                    <LuHeading2 />
-                    <Text fontSize="sm">Heading 2</Text>
+                </Menu.Item>
+                <Menu.Item
+                  value="h2"
+                  onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                  bg={isActiveItem("heading", { level: 2 }) ? "#EEF2FF" : undefined}
+                >
+                  <HStack gap={2} justify="space-between" w="full">
+                    <HStack gap={2}>
+                      <LuHeading2 />
+                      <Text fontSize="sm">Heading 2</Text>
+                    </HStack>
+                    {isActiveItem("heading", { level: 2 }) && <Text color="#6366F1">✓</Text>}
                   </HStack>
-                  {isActiveItem("heading", { level: 2 }) && <Text color="#6366F1">✓</Text>}
-                </HStack>
-              </Menu.Item>
-            </Menu.Content>
-          </Menu.Positioner>
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
         </Menu.Root>
 
         {/* Lists Group */}
@@ -258,36 +264,38 @@ export function Toolbar({ editor }: ToolbarProps) {
               <LuList size={14} />
             </IconButton>
           </Menu.Trigger>
-          <Menu.Positioner>
-            <Menu.Content minW="140px">
-              <Menu.Item
-                value="bullet"
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-                bg={isActiveItem("bulletList") ? "#EEF2FF" : undefined}
-              >
-                <HStack gap={2} justify="space-between" w="full">
-                  <HStack gap={2}>
-                    <LuList />
-                    <Text fontSize="sm">Bullet List</Text>
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content minW="140px">
+                <Menu.Item
+                  value="bullet"
+                  onClick={() => editor.chain().focus().toggleBulletList().run()}
+                  bg={isActiveItem("bulletList") ? "#EEF2FF" : undefined}
+                >
+                  <HStack gap={2} justify="space-between" w="full">
+                    <HStack gap={2}>
+                      <LuList />
+                      <Text fontSize="sm">Bullet List</Text>
+                    </HStack>
+                    {isActiveItem("bulletList") && <Text color="#6366F1">✓</Text>}
                   </HStack>
-                  {isActiveItem("bulletList") && <Text color="#6366F1">✓</Text>}
-                </HStack>
-              </Menu.Item>
-              <Menu.Item
-                value="numbered"
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                bg={isActiveItem("orderedList") ? "#EEF2FF" : undefined}
-              >
-                <HStack gap={2} justify="space-between" w="full">
-                  <HStack gap={2}>
-                    <LuListOrdered />
-                    <Text fontSize="sm">Numbered List</Text>
+                </Menu.Item>
+                <Menu.Item
+                  value="numbered"
+                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                  bg={isActiveItem("orderedList") ? "#EEF2FF" : undefined}
+                >
+                  <HStack gap={2} justify="space-between" w="full">
+                    <HStack gap={2}>
+                      <LuListOrdered />
+                      <Text fontSize="sm">Numbered List</Text>
+                    </HStack>
+                    {isActiveItem("orderedList") && <Text color="#6366F1">✓</Text>}
                   </HStack>
-                  {isActiveItem("orderedList") && <Text color="#6366F1">✓</Text>}
-                </HStack>
-              </Menu.Item>
-            </Menu.Content>
-          </Menu.Positioner>
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
         </Menu.Root>
 
         {/* Text Color */}
@@ -313,47 +321,49 @@ export function Toolbar({ editor }: ToolbarProps) {
               </Box>
             </IconButton>
           </Menu.Trigger>
-          <Menu.Positioner>
-            <Menu.Content minW="120px">
-              {TEXT_COLORS.map((c) => {
-                const isSelected = c.color ? editor.isActive("textStyle", { color: c.color }) : !editor.getAttributes("textStyle").color;
-                return (
-                  <Menu.Item
-                    key={c.name}
-                    value={c.name}
-                    onClick={() => {
-                      if (c.color) {
-                        // Toggle: if already selected, unset; otherwise set
-                        if (isSelected) {
-                          editor.chain().focus().unsetColor().run();
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content minW="120px">
+                {TEXT_COLORS.map((c) => {
+                  const isSelected = c.color ? editor.isActive("textStyle", { color: c.color }) : !editor.getAttributes("textStyle").color;
+                  return (
+                    <Menu.Item
+                      key={c.name}
+                      value={c.name}
+                      onClick={() => {
+                        if (c.color) {
+                          // Toggle: if already selected, unset; otherwise set
+                          if (isSelected) {
+                            editor.chain().focus().unsetColor().run();
+                          } else {
+                            editor.chain().focus().setColor(c.color).run();
+                          }
                         } else {
-                          editor.chain().focus().setColor(c.color).run();
+                          editor.chain().focus().unsetColor().run();
                         }
-                      } else {
-                        editor.chain().focus().unsetColor().run();
-                      }
-                    }}
-                    bg={isSelected ? "#EEF2FF" : undefined}
-                  >
-                    <HStack gap={2} justify="space-between" w="full">
-                      <HStack gap={2}>
-                        <Box
-                          w={4}
-                          h={4}
-                          borderRadius="sm"
-                          bg={c.displayColor}
-                          border="1px solid"
-                          borderColor="gray.300"
-                        />
-                        <Text fontSize="sm">{c.name}</Text>
+                      }}
+                      bg={isSelected ? "#EEF2FF" : undefined}
+                    >
+                      <HStack gap={2} justify="space-between" w="full">
+                        <HStack gap={2}>
+                          <Box
+                            w={4}
+                            h={4}
+                            borderRadius="sm"
+                            bg={c.displayColor}
+                            border="1px solid"
+                            borderColor="gray.300"
+                          />
+                          <Text fontSize="sm">{c.name}</Text>
+                        </HStack>
+                        {isSelected && <Text color="#6366F1">✓</Text>}
                       </HStack>
-                      {isSelected && <Text color="#6366F1">✓</Text>}
-                    </HStack>
-                  </Menu.Item>
-                );
-              })}
-            </Menu.Content>
-          </Menu.Positioner>
+                    </Menu.Item>
+                  );
+                })}
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
         </Menu.Root>
 
         {/* Highlight Color */}
@@ -383,47 +393,49 @@ export function Toolbar({ editor }: ToolbarProps) {
               </Box>
             </IconButton>
           </Menu.Trigger>
-          <Menu.Positioner>
-            <Menu.Content minW="120px">
-              {HIGHLIGHT_COLORS.map((c) => {
-                const isSelected = c.color ? editor.isActive("highlight", { color: c.color }) : !editor.isActive("highlight");
-                return (
-                  <Menu.Item
-                    key={c.name}
-                    value={c.name}
-                    onClick={() => {
-                      if (c.color) {
-                        // Toggle: if already selected, unset; otherwise set
-                        if (isSelected) {
-                          editor.chain().focus().unsetHighlight().run();
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content minW="120px">
+                {HIGHLIGHT_COLORS.map((c) => {
+                  const isSelected = c.color ? editor.isActive("highlight", { color: c.color }) : !editor.isActive("highlight");
+                  return (
+                    <Menu.Item
+                      key={c.name}
+                      value={c.name}
+                      onClick={() => {
+                        if (c.color) {
+                          // Toggle: if already selected, unset; otherwise set
+                          if (isSelected) {
+                            editor.chain().focus().unsetHighlight().run();
+                          } else {
+                            editor.chain().focus().setHighlight({ color: c.color }).run();
+                          }
                         } else {
-                          editor.chain().focus().setHighlight({ color: c.color }).run();
+                          editor.chain().focus().unsetHighlight().run();
                         }
-                      } else {
-                        editor.chain().focus().unsetHighlight().run();
-                      }
-                    }}
-                    bg={isSelected ? "#EEF2FF" : undefined}
-                  >
-                    <HStack gap={2} justify="space-between" w="full">
-                      <HStack gap={2}>
-                        <Box
-                          w={4}
-                          h={4}
-                          borderRadius="sm"
-                          bg={c.color || "transparent"}
-                          border="1px solid"
-                          borderColor="gray.300"
-                        />
-                        <Text fontSize="sm">{c.name}</Text>
+                      }}
+                      bg={isSelected ? "#EEF2FF" : undefined}
+                    >
+                      <HStack gap={2} justify="space-between" w="full">
+                        <HStack gap={2}>
+                          <Box
+                            w={4}
+                            h={4}
+                            borderRadius="sm"
+                            bg={c.color || "transparent"}
+                            border="1px solid"
+                            borderColor="gray.300"
+                          />
+                          <Text fontSize="sm">{c.name}</Text>
+                        </HStack>
+                        {isSelected && <Text color="#6366F1">✓</Text>}
                       </HStack>
-                      {isSelected && <Text color="#6366F1">✓</Text>}
-                    </HStack>
-                  </Menu.Item>
-                );
-              })}
-            </Menu.Content>
-          </Menu.Positioner>
+                    </Menu.Item>
+                  );
+                })}
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
         </Menu.Root>
 
         {/* Task List - Own group, always visible on mobile */}
@@ -659,47 +671,49 @@ export function Toolbar({ editor }: ToolbarProps) {
             </TooltipButton>
           </Box>
         </Menu.Trigger>
-        <Menu.Positioner>
-          <Menu.Content minW="120px">
-            {TEXT_COLORS.map((c) => {
-              const isSelected = c.color ? editor.isActive("textStyle", { color: c.color }) : !editor.getAttributes("textStyle").color;
-              return (
-                <Menu.Item
-                  key={c.name}
-                  value={c.name}
-                  onClick={() => {
-                    if (c.color) {
-                      // Toggle: if already selected, unset; otherwise set
-                      if (isSelected) {
-                        editor.chain().focus().unsetColor().run();
+        <Portal>
+          <Menu.Positioner>
+            <Menu.Content minW="120px">
+              {TEXT_COLORS.map((c) => {
+                const isSelected = c.color ? editor.isActive("textStyle", { color: c.color }) : !editor.getAttributes("textStyle").color;
+                return (
+                  <Menu.Item
+                    key={c.name}
+                    value={c.name}
+                    onClick={() => {
+                      if (c.color) {
+                        // Toggle: if already selected, unset; otherwise set
+                        if (isSelected) {
+                          editor.chain().focus().unsetColor().run();
+                        } else {
+                          editor.chain().focus().setColor(c.color).run();
+                        }
                       } else {
-                        editor.chain().focus().setColor(c.color).run();
+                        editor.chain().focus().unsetColor().run();
                       }
-                    } else {
-                      editor.chain().focus().unsetColor().run();
-                    }
-                  }}
-                  bg={isSelected ? "#EEF2FF" : undefined}
-                >
-                  <HStack gap={2} justify="space-between" w="full">
-                    <HStack gap={2}>
-                      <Box
-                        w={4}
-                        h={4}
-                        borderRadius="sm"
-                        bg={c.displayColor}
-                        border="1px solid"
-                        borderColor="gray.300"
-                      />
-                      <Text fontSize="sm">{c.name}</Text>
+                    }}
+                    bg={isSelected ? "#EEF2FF" : undefined}
+                  >
+                    <HStack gap={2} justify="space-between" w="full">
+                      <HStack gap={2}>
+                        <Box
+                          w={4}
+                          h={4}
+                          borderRadius="sm"
+                          bg={c.displayColor}
+                          border="1px solid"
+                          borderColor="gray.300"
+                        />
+                        <Text fontSize="sm">{c.name}</Text>
+                      </HStack>
+                      {isSelected && <Text color="#6366F1">✓</Text>}
                     </HStack>
-                    {isSelected && <Text color="#6366F1">✓</Text>}
-                  </HStack>
-                </Menu.Item>
-              );
-            })}
-          </Menu.Content>
-        </Menu.Positioner>
+                  </Menu.Item>
+                );
+              })}
+            </Menu.Content>
+          </Menu.Positioner>
+        </Portal>
       </Menu.Root>
 
       {/* Highlight Color */}
@@ -733,47 +747,49 @@ export function Toolbar({ editor }: ToolbarProps) {
             </TooltipButton>
           </Box>
         </Menu.Trigger>
-        <Menu.Positioner>
-          <Menu.Content minW="120px">
-            {HIGHLIGHT_COLORS.map((c) => {
-              const isSelected = c.color ? editor.isActive("highlight", { color: c.color }) : !editor.isActive("highlight");
-              return (
-                <Menu.Item
-                  key={c.name}
-                  value={c.name}
-                  onClick={() => {
-                    if (c.color) {
-                      // Toggle: if already selected, unset; otherwise set
-                      if (isSelected) {
-                        editor.chain().focus().unsetHighlight().run();
+        <Portal>
+          <Menu.Positioner>
+            <Menu.Content minW="120px">
+              {HIGHLIGHT_COLORS.map((c) => {
+                const isSelected = c.color ? editor.isActive("highlight", { color: c.color }) : !editor.isActive("highlight");
+                return (
+                  <Menu.Item
+                    key={c.name}
+                    value={c.name}
+                    onClick={() => {
+                      if (c.color) {
+                        // Toggle: if already selected, unset; otherwise set
+                        if (isSelected) {
+                          editor.chain().focus().unsetHighlight().run();
+                        } else {
+                          editor.chain().focus().setHighlight({ color: c.color }).run();
+                        }
                       } else {
-                        editor.chain().focus().setHighlight({ color: c.color }).run();
+                        editor.chain().focus().unsetHighlight().run();
                       }
-                    } else {
-                      editor.chain().focus().unsetHighlight().run();
-                    }
-                  }}
-                  bg={isSelected ? "#EEF2FF" : undefined}
-                >
-                  <HStack gap={2} justify="space-between" w="full">
-                    <HStack gap={2}>
-                      <Box
-                        w={4}
-                        h={4}
-                        borderRadius="sm"
-                        bg={c.color || "transparent"}
-                        border="1px solid"
-                        borderColor="gray.300"
-                      />
-                      <Text fontSize="sm">{c.name}</Text>
+                    }}
+                    bg={isSelected ? "#EEF2FF" : undefined}
+                  >
+                    <HStack gap={2} justify="space-between" w="full">
+                      <HStack gap={2}>
+                        <Box
+                          w={4}
+                          h={4}
+                          borderRadius="sm"
+                          bg={c.color || "transparent"}
+                          border="1px solid"
+                          borderColor="gray.300"
+                        />
+                        <Text fontSize="sm">{c.name}</Text>
+                      </HStack>
+                      {isSelected && <Text color="#6366F1">✓</Text>}
                     </HStack>
-                    {isSelected && <Text color="#6366F1">✓</Text>}
-                  </HStack>
-                </Menu.Item>
-              );
-            })}
-          </Menu.Content>
-        </Menu.Positioner>
+                  </Menu.Item>
+                );
+              })}
+            </Menu.Content>
+          </Menu.Positioner>
+        </Portal>
       </Menu.Root>
 
       <Separator />

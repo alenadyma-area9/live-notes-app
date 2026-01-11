@@ -14,7 +14,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical } from "react-icons/lu";
+import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical, LuCircleX } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
@@ -100,10 +100,10 @@ export function CollaborativeEditor({
   const [isLocked, setIsLocked] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const showToast = useCallback((message: string, type: "success" | "info" = "success") => {
+  const showToast = useCallback((message: string, type: "success" | "info" | "error" = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 2000);
   }, []);
@@ -786,18 +786,18 @@ export function CollaborativeEditor({
         pointerEvents: "none",
       },
       "& p": { margin: "0.5em 0", lineHeight: "1.7" },
-      "& p:first-child": { marginTop: 0 },
+      "& p:first-of-type": { marginTop: 0 },
       "& h1": { fontSize: "1.5rem", fontWeight: "600", margin: "0.75em 0 0.4em", lineHeight: "1.3" },
-      "& h1:first-child": { marginTop: 0 },
+      "& h1:first-of-type": { marginTop: 0 },
       "& h2": { fontSize: "1.2rem", fontWeight: "600", margin: "0.75em 0 0.4em", lineHeight: "1.4" },
-      "& h2:first-child": { marginTop: 0 },
+      "& h2:first-of-type": { marginTop: 0 },
       "& strong, & b": { fontWeight: "600" },
       "& em, & i": { fontStyle: "italic" },
       "& s, & strike": { textDecoration: "line-through" },
       "& ul": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "disc", lineHeight: "1.7" },
-      "& ul:first-child": { marginTop: 0 },
+      "& ul:first-of-type": { marginTop: 0 },
       "& ol": { paddingLeft: "1.5em", margin: "0.5em 0", listStyleType: "decimal", lineHeight: "1.7" },
-      "& ol:first-child": { marginTop: 0 },
+      "& ol:first-of-type": { marginTop: 0 },
       "& li": { margin: "0.25em 0", display: "list-item" },
       "& li p": { margin: "0" },
       "& img": {
@@ -828,7 +828,7 @@ export function CollaborativeEditor({
         listStyle: "none",
         padding: 0,
         margin: "0.5em 0",
-        "&:first-child": { marginTop: 0 },
+        "&:first-of-type": { marginTop: 0 },
         "& li": {
           display: "flex",
           alignItems: "flex-start",
@@ -855,7 +855,7 @@ export function CollaborativeEditor({
         "& li[data-checked='true']": {
           "& > div": {
             textDecoration: "line-through",
-            color: "#9CA3AF",
+            color: "#4B5563",
           },
         },
       },
@@ -1344,6 +1344,9 @@ export function CollaborativeEditor({
             borderColor="gray.100"
             overflowX={{ base: "auto", md: "visible" }}
             overflowY="hidden"
+            position={{ base: "sticky", md: "relative" }}
+            top={0}
+            zIndex={10}
             css={{
               "&::-webkit-scrollbar": { display: "none" },
               scrollbarWidth: "none",
@@ -1586,7 +1589,7 @@ export function CollaborativeEditor({
           bottom={4}
           left="50%"
           transform="translateX(-50%)"
-          bg={toast.type === "success" ? "green.500" : "#6366F1"}
+          bg={toast.type === "error" ? "red.500" : toast.type === "success" ? "green.500" : "#6366F1"}
           color="white"
           px={4}
           py={2}
@@ -1597,7 +1600,7 @@ export function CollaborativeEditor({
           alignItems="center"
           gap={2}
         >
-          <LuCheck size={16} />
+          {toast.type === "error" ? <LuCircleX size={16} /> : <LuCheck size={16} />}
           <Text fontSize="sm" fontWeight="medium">{toast.message}</Text>
         </Box>
       )}

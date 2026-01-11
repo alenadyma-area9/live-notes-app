@@ -14,7 +14,7 @@ import {
   Input,
   Tooltip,
 } from "@chakra-ui/react";
-import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid, LuCopy, LuLock, LuLockOpen, LuUsers, LuLink, LuZap } from "react-icons/lu";
+import { LuPlus, LuEllipsisVertical, LuX, LuTrash2, LuShare2, LuCheck, LuFilter, LuArrowUpDown, LuList, LuLayoutGrid, LuCopy, LuLock, LuLockOpen, LuUsers, LuLink, LuZap, LuCircleX } from "react-icons/lu";
 import { useAppStore } from "../store";
 import { generateNoteId } from "../utils";
 import { Header } from "../components/Header";
@@ -71,7 +71,7 @@ type SortOption = "lastEdited" | "created" | "title" | "author";
 export function Home() {
   const navigate = useNavigate();
   const { recentNotes, removeRecentNote, addRecentNote, isNoteOwner, userId, viewType, setViewType, updateNoteLocked } = useAppStore();
-  const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Search, filter, sort state
@@ -99,7 +99,7 @@ export function Home() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const showToast = (message: string, type: "success" | "info" = "success") => {
+  const showToast = (message: string, type: "success" | "info" | "error" = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 2000);
   };
@@ -141,7 +141,7 @@ export function Home() {
       showToast("Note deleted", "info");
     } catch (err) {
       console.error("Failed to delete note:", err);
-      showToast("Failed to delete note", "info");
+      showToast("Failed to delete note", "error");
     }
     setIsDeleting(false);
     setDeleteDialogOpen(false);
@@ -161,6 +161,7 @@ export function Home() {
 
     const note = recentNotes.find(n => n.id === pendingActionNoteId);
     const noteTitle = note?.title;
+    const notePreview = note?.preview; // Copy the preview from source note
     // Check if it's an "untitled" note (empty, or matches "Note {id}" pattern)
     const isUntitled = !noteTitle || noteTitle === `Note ${pendingActionNoteId}`;
     const newTitle = isUntitled ? "(copy) Untitled" : `(copy) ${noteTitle}`;
@@ -194,13 +195,13 @@ export function Home() {
         body: JSON.stringify({ state: stateToUse, title: newTitle }),
       });
 
-      // Add to recent notes immediately with the new title
-      addRecentNote(newNoteId, newTitle, true);
+      // Add to recent notes immediately with the new title and copy the preview
+      addRecentNote(newNoteId, newTitle, true, notePreview);
 
       showToast(`Created "${newTitle}"`, "success");
     } catch (err) {
       console.error("Failed to duplicate:", err);
-      showToast("Failed to duplicate note", "info");
+      showToast("Failed to duplicate note", "error");
     }
 
     setIsDuplicating(false);
@@ -233,11 +234,11 @@ export function Home() {
         updateNoteLocked(pendingActionNoteId, newLockedState);
         showToast(newLockedState ? "Note locked" : "Note unlocked", "success");
       } else {
-        showToast("Failed to update lock status", "info");
+        showToast("Failed to update lock status", "error");
       }
     } catch (err) {
       console.error("Failed to toggle lock:", err);
-      showToast("Failed to update lock status", "info");
+      showToast("Failed to update lock status", "error");
     }
 
     setIsLocking(false);
@@ -357,7 +358,7 @@ export function Home() {
           bottom={4}
           left="50%"
           transform="translateX(-50%)"
-          bg={toast.type === "success" ? "green.500" : "#6366F1"}
+          bg={toast.type === "error" ? "red.500" : toast.type === "success" ? "green.500" : "#6366F1"}
           color="white"
           px={4}
           py={2}
@@ -368,171 +369,171 @@ export function Home() {
           alignItems="center"
           gap={2}
         >
-          <LuCheck size={16} />
+          {toast.type === "error" ? <LuCircleX size={16} /> : <LuCheck size={16} />}
           <Text fontSize="sm" fontWeight="medium">{toast.message}</Text>
         </Box>
       )}
 
-      <Container maxW="900px" py={{ base: 4, md: 8 }}>
+      {/* Full-page gradient background for empty state */}
+      {!hasVisibleNotes && (
+        <>
+          <Box
+            position="fixed"
+            top={0}
+            left={0}
+            w="100vw"
+            h="100vh"
+            pointerEvents="none"
+            zIndex={0}
+            overflow="hidden"
+          >
+            {/* Purple blob - top left */}
+            <Box
+              position="absolute"
+              top={{ base: "5%", md: "10%" }}
+              left={{ base: "-10%", md: "10%" }}
+              w={{ base: "350px", md: "500px" }}
+              h={{ base: "350px", md: "500px" }}
+              bg="rgba(139, 92, 246, 0.15)"
+              borderRadius="full"
+              filter="blur(100px)"
+            />
+            {/* Orange blob - bottom right */}
+            <Box
+              position="absolute"
+              bottom={{ base: "10%", md: "15%" }}
+              right={{ base: "-10%", md: "5%" }}
+              w={{ base: "300px", md: "450px" }}
+              h={{ base: "300px", md: "450px" }}
+              bg="rgba(251, 191, 146, 0.2)"
+              borderRadius="full"
+              filter="blur(100px)"
+            />
+          </Box>
+        </>
+      )}
+
+      <Container maxW="900px" py={{ base: 4, md: 4 }} position="relative" zIndex={1}>
         <VStack gap={6} align="stretch">
           {!hasVisibleNotes ? (
             /* Empty state - premium onboarding */
             <Box
-              minH={{ base: "calc(100vh - 120px)", md: "calc(100vh - 200px)" }}
+              minH={{ base: "auto", md: "calc(100vh - 120px)" }}
               display="flex"
               flexDirection="column"
               justifyContent="center"
               alignItems="center"
               position="relative"
-              overflow="hidden"
-              pb={{ base: "15vh", md: "12vh" }}
             >
-              {/* Soft background mesh blobs */}
-              <Box
-                position="absolute"
-                top={{ base: "-20%", md: "-10%" }}
-                left={{ base: "-30%", md: "-5%" }}
-                w={{ base: "300px", md: "400px" }}
-                h={{ base: "300px", md: "400px" }}
-                bg="rgba(139, 92, 246, 0.15)"
-                borderRadius="full"
-                filter="blur(80px)"
-                pointerEvents="none"
-              />
-              <Box
-                position="absolute"
-                bottom={{ base: "-10%", md: "0%" }}
-                right={{ base: "-20%", md: "-5%" }}
-                w={{ base: "250px", md: "350px" }}
-                h={{ base: "250px", md: "350px" }}
-                bg="rgba(251, 191, 146, 0.2)"
-                borderRadius="full"
-                filter="blur(80px)"
-                pointerEvents="none"
-              />
 
-              {/* Glassmorphism card */}
+              {/* Frosted Glass Card */}
               <Box
-                bg="rgba(255, 255, 255, 0.7)"
-                backdropFilter="blur(20px)"
-                border="1px solid rgba(255, 255, 255, 0.8)"
+                bg="rgba(255, 255, 255, 0.8)"
+                backdropFilter="blur(12px)"
+                border="1px solid rgba(255, 255, 255, 0.5)"
                 borderRadius="2xl"
-                p={{ base: 6, md: 10 }}
-                mx={{ base: 6, md: 4 }}
-                maxW="400px"
-                w={{ base: "calc(100% - 48px)", md: "full" }}
-                boxShadow="0 8px 32px rgba(0, 0, 0, 0.08)"
+                p={{ base: 5, md: 8 }}
+                mx={{ base: 4, md: 4 }}
+                maxW="380px"
+                w={{ base: "calc(100% - 32px)", md: "full" }}
+                boxShadow="0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.6)"
                 position="relative"
                 zIndex={1}
               >
                 {/* Hero section */}
-                <Box textAlign="center" mb={8}>
+                <Box textAlign="center" mb={6}>
                   <Text
-                    fontSize={{ base: "2xl", md: "2xl" }}
-                    fontWeight="extrabold"
+                    fontSize={{ base: "xl", md: "2xl" }}
+                    fontWeight="800"
                     color="gray.800"
-                    mb={2}
+                    mb={1}
                     letterSpacing="-0.02em"
                   >
-                    Welcome to Live Notes ✨
+                    Welcome to Live Notes{" "}
+                    <Text as="span" display="inline">✨</Text>
                   </Text>
                   <Text
-                    fontSize={{ base: "sm", md: "md" }}
+                    fontSize="sm"
                     color="#4B5563"
                     mx="auto"
-                    lineHeight="1.6"
+                    lineHeight="1.5"
                   >
                     Real-time collaborative notes.<br />No sign-up required.
                   </Text>
                 </Box>
 
-                {/* Glowing CTA Button */}
+                {/* High-End CTA Button with Gradient */}
                 <Button
-                  bg="#6366F1"
+                  bgGradient="linear(135deg, #7C3AED 0%, #6366F1 100%)"
+                  bg="linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)"
                   color="white"
-                  size="lg"
+                  size="md"
                   w="full"
                   onClick={handleCreateNote}
                   borderRadius="xl"
-                  h={12}
-                  fontSize="md"
+                  h={11}
+                  fontSize="sm"
                   fontWeight="semibold"
-                  boxShadow="0 10px 25px rgba(99, 102, 241, 0.35)"
+                  boxShadow="0 10px 15px -3px rgba(99, 102, 241, 0.3), 0 4px 6px -2px rgba(99, 102, 241, 0.2)"
                   _hover={{
-                    bg: "#4F46E5",
-                    boxShadow: "0 14px 30px rgba(99, 102, 241, 0.45)",
+                    bg: "linear-gradient(135deg, #6D28D9 0%, #4F46E5 100%)",
+                    boxShadow: "0 14px 20px -3px rgba(99, 102, 241, 0.4), 0 6px 8px -2px rgba(99, 102, 241, 0.25)",
                     transform: "translateY(-2px)"
                   }}
                   _active={{
                     transform: "translateY(0)",
-                    boxShadow: "0 8px 20px rgba(99, 102, 241, 0.3)"
+                    boxShadow: "0 8px 12px -3px rgba(99, 102, 241, 0.25)"
                   }}
                   transition="all 0.2s ease"
                 >
                   <LuPlus /> Create Your First Note
                 </Button>
 
-                {/* Features - centered list */}
-                <VStack gap={4} mt={8} w="full">
-                  <HStack gap={3} justify="center" w="full">
+                {/* Features - compact list */}
+                <VStack gap={2.5} mt={6} w="full">
+                  <HStack gap={2.5} justify="center" w="full">
                     <Box
                       color="#6366F1"
-                      bg="rgba(99, 102, 241, 0.1)"
+                      bg="rgba(99, 102, 241, 0.08)"
                       p={2}
                       borderRadius="lg"
                     >
-                      <LuUsers size={18} />
+                      <LuUsers size={16} />
                     </Box>
-                    <Text fontSize="sm" color="#4B5563" fontWeight="medium">
+                    <Text fontSize="xs" color="#4B5563" fontWeight="medium">
                       Real-time collaboration
                     </Text>
                   </HStack>
-                  <HStack gap={3} justify="center" w="full">
+                  <HStack gap={2.5} justify="center" w="full">
                     <Box
                       color="#10B981"
-                      bg="rgba(16, 185, 129, 0.1)"
+                      bg="rgba(34, 197, 94, 0.08)"
                       p={2}
                       borderRadius="lg"
                     >
-                      <LuLink size={18} />
+                      <LuLink size={16} />
                     </Box>
-                    <Text fontSize="sm" color="#4B5563" fontWeight="medium">
+                    <Text fontSize="xs" color="#4B5563" fontWeight="medium">
                       Share instantly, no sign-up
                     </Text>
                   </HStack>
-                  <HStack gap={3} justify="center" w="full">
+                  <HStack gap={2.5} justify="center" w="full">
                     <Box
                       color="#F59E0B"
-                      bg="rgba(245, 158, 11, 0.1)"
+                      bg="rgba(245, 158, 11, 0.08)"
                       p={2}
                       borderRadius="lg"
                     >
-                      <LuZap size={18} />
+                      <LuZap size={16} />
                     </Box>
-                    <Text fontSize="sm" color="#4B5563" fontWeight="medium">
+                    <Text fontSize="xs" color="#4B5563" fontWeight="medium">
                       Auto-saved with history
                     </Text>
                   </HStack>
                 </VStack>
               </Box>
 
-              {/* How it works - desktop only */}
-              <HStack justify="center" gap={8} mt={10} color="gray.400" fontSize="sm" display={{ base: "none", md: "flex" }}>
-                <HStack gap={2}>
-                  <Box w={6} h={6} bg="gray.100" borderRadius="full" display="flex" alignItems="center" justifyContent="center" fontSize="xs" fontWeight="bold" color="gray.500">1</Box>
-                  <Text>Create</Text>
-                </HStack>
-                <Text>→</Text>
-                <HStack gap={2}>
-                  <Box w={6} h={6} bg="gray.100" borderRadius="full" display="flex" alignItems="center" justifyContent="center" fontSize="xs" fontWeight="bold" color="gray.500">2</Box>
-                  <Text>Share</Text>
-                </HStack>
-                <Text>→</Text>
-                <HStack gap={2}>
-                  <Box w={6} h={6} bg="gray.100" borderRadius="full" display="flex" alignItems="center" justifyContent="center" fontSize="xs" fontWeight="bold" color="gray.500">3</Box>
-                  <Text>Collaborate</Text>
-                </HStack>
-              </HStack>
+
             </Box>
           ) : (
             <Box>

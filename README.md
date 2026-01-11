@@ -98,21 +98,35 @@ Open http://localhost:5173 in your browser.
 
 ## Deployment
 
-### PartyKit (WebSocket Server)
+This app has **two separate deployments** that must be managed independently:
 
-```bash
-npx partykit login
-npx partykit deploy
-```
+| Component | Platform | Auto-deploy? | When to deploy |
+|-----------|----------|--------------|----------------|
+| Frontend | Vercel | ✅ Yes (on git push) | Changes to `src/` |
+| Backend | PartyKit Cloud | ❌ No (manual) | Changes to `party/` |
 
 ### Frontend (Vercel)
 
-The repository is configured for automatic Vercel deployments. Push to `main` to deploy.
+Vercel automatically deploys when you push to `main`. No action needed.
 
 For manual deployment:
 ```bash
 vercel --prod
 ```
+
+### PartyKit (WebSocket Server)
+
+**Important:** PartyKit does NOT auto-deploy. You must manually deploy after any changes to files in the `party/` directory.
+
+```bash
+# First time only - login to PartyKit
+npx partykit login
+
+# Deploy backend (run after any party/ changes)
+npx partykit deploy
+```
+
+**Common mistake:** Pushing changes to `party/index.ts` and assuming they're live. The frontend will deploy automatically, but the backend won't — causing 404 errors or missing functionality until you run `npx partykit deploy`.
 
 ## Environment Variables
 
