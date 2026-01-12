@@ -76,6 +76,7 @@ export function CollaborativeEditor({
   const isMobile = useBreakpointValue({ base: true, md: false });
   const [isConnected, setIsConnected] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
+  const [hasConnectedOnce, setHasConnectedOnce] = useState(false);
   const isOwner = isNoteOwner(noteId);
 
   // Check for pending duplicate title in sessionStorage
@@ -186,8 +187,10 @@ export function CollaborativeEditor({
 
   useEffect(() => {
     const onStatus = ({ status }: { status: string }) => {
-      setIsConnected(status === "connected");
-      if (status === "connected") {
+      const connected = status === "connected";
+      setIsConnected(connected);
+      if (connected) {
+        setHasConnectedOnce(true);
         registerUser();
       }
     };
@@ -196,6 +199,7 @@ export function CollaborativeEditor({
 
     if (provider.wsconnected) {
       setIsConnected(true);
+      setHasConnectedOnce(true);
       registerUser();
     }
 
@@ -598,7 +602,8 @@ export function CollaborativeEditor({
 
 
 
-  if (!isConnected || !isUserRegistered) {
+  // Only show full loading screen on initial connection, not on reconnections
+  if (!hasConnectedOnce) {
     return (
       <VStack h="100%" justify="center" align="center" gap={4}>
         <Box
