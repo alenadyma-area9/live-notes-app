@@ -100,7 +100,19 @@ export function Toolbar({ editor }: ToolbarProps) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64 = e.target?.result as string;
-      editor.chain().focus().setImage({ src: base64 }).run();
+      // Insert image and add empty paragraph after for easier typing (especially on mobile)
+      editor.chain()
+        .focus()
+        .setImage({ src: base64 })
+        .command(({ tr, dispatch }) => {
+          if (dispatch) {
+            const paragraph = editor.schema.nodes.paragraph.create();
+            tr.insert(tr.selection.to, paragraph);
+          }
+          return true;
+        })
+        .focus()
+        .run();
     };
     reader.readAsDataURL(file);
 
