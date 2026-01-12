@@ -227,15 +227,18 @@ export function CollaborativeEditor({
       try {
         const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
 
-        // Decode base64 to Uint8Array
-        const binary = atob(stateBase64);
-        const state = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          state[i] = binary.charCodeAt(i);
-        }
+        // Only apply state if we have one (it might be null for empty notes)
+        if (stateBase64) {
+          // Decode base64 to Uint8Array
+          const binary = atob(stateBase64);
+          const state = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            state[i] = binary.charCodeAt(i);
+          }
 
-        // Apply the state to the Y.Doc (this includes old title and owner)
-        Y.applyUpdate(ydocRef.current, state);
+          // Apply the state to the Y.Doc (this includes old title and owner)
+          Y.applyUpdate(ydocRef.current, state);
+        }
 
         // Set the NEW title and owner in Y.Doc meta (overwrites old values)
         const meta = ydocRef.current.getMap("meta");
@@ -252,8 +255,10 @@ export function CollaborativeEditor({
         // Update the store with the correct title and owner immediately
         onTitleChange?.(newTitle);
         updateNoteOwner(noteId, userId, userName);
+
+        console.log("[Duplicate] Applied successfully, title:", newTitle);
       } catch (err) {
-        console.error("Failed to apply duplicate state:", err);
+        console.error("[Duplicate] Failed to apply state:", err);
       }
     }
   }, [isConnected, noteId, onTitleChange, userId, userName, updateNoteOwner]);
@@ -308,6 +313,39 @@ export function CollaborativeEditor({
       removeRecentNote(noteId);
     }
   }, [isDeleted, noteId, removeRecentNote]);
+
+  // Periodic lock status check for non-owners viewing locked screen
+  // This ensures they see updates when owner unlocks the note
+  useEffect(() => {
+    if (!isConnected || isOwner) return;
+
+    const checkLockStatus = async () => {
+      try {
+        const protocol = partykitHost.includes("localhost") ? "http" : "https";
+        const res = await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/lock-status`);
+        if (res.ok) {
+          const data = await res.json();
+          const serverLocked = data.locked === true;
+
+          // Update local state if server disagrees
+          if (serverLocked !== isLocked) {
+            console.log("[LockCheck] Server lock status differs, updating:", serverLocked);
+            setIsLocked(serverLocked);
+            updateNoteLocked(noteId, serverLocked);
+          }
+        }
+      } catch (err) {
+        // Silently ignore - just a refresh check
+      }
+    };
+
+    // Check immediately and then every 5 seconds when viewing locked screen
+    if (isLocked && !isOwner) {
+      checkLockStatus();
+      const interval = setInterval(checkLockStatus, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isConnected, isOwner, isLocked, noteId, partykitHost, updateNoteLocked]);
 
   // Save version on page leave/close
   useEffect(() => {
@@ -398,41 +436,67 @@ export function CollaborativeEditor({
   }, [titleMap, isLocked]);
 
   const handleDuplicateConfirm = useCallback(async () => {
-    if (!ydocRef.current || !onDuplicate) return;
+    console.log("[Duplicate] Starting from note page...");
 
-    const state = Y.encodeStateAsUpdate(ydocRef.current);
-    let binary = "";
-    for (let i = 0; i < state.byteLength; i++) {
-      binary += String.fromCharCode(state[i]);
+    if (!ydocRef.current) {
+      console.error("[Duplicate] No Y.Doc available");
+      showToast("Cannot duplicate - document not ready", "error");
+      return;
     }
-    const stateBase64 = btoa(binary);
 
-    const newNoteId = Math.random().toString(36).substring(2, 10);
-    const formatDateTime = () => new Date().toLocaleDateString(undefined, {
-      month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
-    });
-    const newTitle = title ? `(copy) ${title}` : `(copy) Untitled ${formatDateTime()}`;
+    if (!onDuplicate) {
+      console.error("[Duplicate] No onDuplicate callback");
+      showToast("Cannot duplicate - navigation not available", "error");
+      return;
+    }
 
-    // Store in sessionStorage for immediate use when navigating
-    sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
-      state: stateBase64,
-      title: newTitle
-    }));
-
-    // Also persist to server so it can be duplicated again from Home page
     try {
-      const protocol = partykitHost.includes("localhost") ? "http" : "https";
-      await fetch(`${protocol}://${partykitHost}/parties/notes/${newNoteId}/init`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: stateBase64, title: newTitle }),
-      });
-    } catch (err) {
-      console.error("Failed to persist duplicate to server:", err);
-    }
+      const state = Y.encodeStateAsUpdate(ydocRef.current);
+      console.log("[Duplicate] Encoded state size:", state.byteLength);
 
-    onDuplicate(newNoteId, newTitle);
-  }, [title, onDuplicate, partykitHost]);
+      let binary = "";
+      for (let i = 0; i < state.byteLength; i++) {
+        binary += String.fromCharCode(state[i]);
+      }
+      const stateBase64 = btoa(binary);
+
+      const newNoteId = Math.random().toString(36).substring(2, 10);
+      const formatDateTime = () => new Date().toLocaleDateString(undefined, {
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
+      });
+      const newTitle = title ? `(copy) ${title}` : `(copy) Untitled ${formatDateTime()}`;
+
+      console.log("[Duplicate] New note ID:", newNoteId);
+      console.log("[Duplicate] New title:", newTitle);
+
+      // Store in sessionStorage for immediate use when navigating
+      sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+        state: stateBase64,
+        title: newTitle
+      }));
+      console.log("[Duplicate] Stored in sessionStorage");
+
+      // Also persist to server so it can be duplicated again from Home page
+      try {
+        const protocol = partykitHost.includes("localhost") ? "http" : "https";
+        await fetch(`${protocol}://${partykitHost}/parties/notes/${newNoteId}/init`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ state: stateBase64, title: newTitle }),
+        });
+        console.log("[Duplicate] Persisted to server");
+      } catch (err) {
+        console.warn("[Duplicate] Failed to persist to server:", err);
+      }
+
+      console.log("[Duplicate] Calling onDuplicate callback...");
+      setDuplicateDialogOpen(false); // Close dialog before navigating
+      onDuplicate(newNoteId, newTitle);
+    } catch (err) {
+      console.error("[Duplicate] Failed:", err);
+      showToast("Failed to duplicate note", "error");
+    }
+  }, [title, onDuplicate, partykitHost, showToast]);
 
   const editor = useEditor(
     {

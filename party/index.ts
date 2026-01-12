@@ -293,15 +293,13 @@ export default class YjsServer implements Party.Server {
     // POST /init - initialize note with content (for duplication)
     if (req.method === "POST" && url.pathname.endsWith("/init")) {
       try {
-        const body = await req.json() as { state: string; title?: string };
+        const body = await req.json() as { state?: string | null; title?: string };
 
-        if (!body.state) {
-          return Response.json({ error: "Missing state" }, { status: 400, headers: corsHeaders });
-        }
-
-        // Store the initial state - it will be applied when client connects
+        // Store the initial state if provided - it will be applied when client connects
         // y-partykit uses "ydoc:default" key for the snapshot
-        await this.room.storage.put("ydoc:default", body.state);
+        if (body.state) {
+          await this.room.storage.put("ydoc:default", body.state);
+        }
 
         // Also store title for when client connects
         if (body.title) {

@@ -74,8 +74,10 @@ export function NotePage() {
   const handleBack = () => navigate("/");
 
   const handleDuplicate = (newNoteId: string, newTitle: string) => {
+    console.log("[NotePage] handleDuplicate called:", newNoteId, newTitle);
     setPendingDuplicate(false);
-    addRecentNote(newNoteId, newTitle);
+    addRecentNote(newNoteId, newTitle, true); // Mark as owner
+    console.log("[NotePage] Navigating to new note...");
     navigate(`/note/${newNoteId}`);
   };
 

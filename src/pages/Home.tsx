@@ -172,15 +172,17 @@ export function Home() {
     try {
       // Fetch the source note's state from server
       const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
-      const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/state`);
-
       let stateToUse: string | null = null;
 
-      if (res.ok) {
-        const data = await res.json();
-        stateToUse = data.state;
+      try {
+        const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/state`);
+        if (res.ok) {
+          const data = await res.json();
+          stateToUse = data.state || null;
+        }
+      } catch (fetchErr) {
+        console.warn("[Duplicate] Could not fetch source state:", fetchErr);
       }
-      // If no state on server, that's fine - we'll create an empty duplicate
 
       // Store in sessionStorage for the new note to pick up when opened
       sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
@@ -188,19 +190,25 @@ export function Home() {
         title: newTitle
       }));
 
-      // Also persist to server so it can be duplicated again from Home page
-      await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: stateToUse, title: newTitle }),
-      });
+      // Also persist to server if we have state
+      if (stateToUse) {
+        try {
+          await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ state: stateToUse, title: newTitle }),
+          });
+        } catch (initErr) {
+          console.warn("[Duplicate] Could not persist to server:", initErr);
+        }
+      }
 
       // Add to recent notes immediately with the new title and copy the preview
       addRecentNote(newNoteId, newTitle, true, notePreview);
 
       showToast(`Created "${newTitle}"`, "success");
     } catch (err) {
-      console.error("Failed to duplicate:", err);
+      console.error("[Duplicate] Failed:", err);
       showToast("Failed to duplicate note", "error");
     }
 
@@ -919,10 +927,12 @@ export function Home() {
                                 <Menu.Content>
                                   <Menu.Item
                                     value="share"
-                                    onClick={(e) => handleShare(note.id, e as unknown as React.MouseEvent)}
+                                    onClick={(e) => !note.isLocked && handleShare(note.id, e as unknown as React.MouseEvent)}
+                                    disabled={note.isLocked}
+                                    color={note.isLocked ? "gray.400" : undefined}
                                   >
                                     <LuShare2 />
-                                    Share
+                                    {note.isLocked ? "Unlock to share" : "Share"}
                                   </Menu.Item>
                                   <Menu.Item
                                     value="duplicate"
@@ -1094,10 +1104,12 @@ export function Home() {
                                   <Menu.Content>
                                     <Menu.Item
                                       value="share"
-                                      onClick={(e) => handleShare(note.id, e as unknown as React.MouseEvent)}
+                                      onClick={(e) => !note.isLocked && handleShare(note.id, e as unknown as React.MouseEvent)}
+                                      disabled={note.isLocked}
+                                      color={note.isLocked ? "gray.400" : undefined}
                                     >
                                       <LuShare2 />
-                                      Share
+                                      {note.isLocked ? "Unlock to share" : "Share"}
                                     </Menu.Item>
                                     <Menu.Item
                                       value="duplicate"

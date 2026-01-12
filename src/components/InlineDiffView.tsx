@@ -3,9 +3,10 @@ import * as Y from "yjs";
 import type { ReactNode } from "react";
 
 interface Block {
-  type: "paragraph" | "heading1" | "heading2" | "bulletList" | "orderedList" | "taskList";
+  type: "paragraph" | "heading1" | "heading2" | "bulletList" | "orderedList" | "taskList" | "image";
   content: FormattedSegment[];
   checked?: boolean; // For task list items
+  imageSrc?: string; // For image blocks
 }
 
 interface FormattedSegment {
@@ -92,6 +93,14 @@ function extractBlocksFromXml(
             });
           }
         }
+      } else if (tagName === "image") {
+        // Handle image elements
+        const src = child.getAttribute("src") as string || "";
+        blocks.push({
+          type: "image",
+          content: [{ text: "[Image]" }],
+          imageSrc: src,
+        });
       } else {
         extractBlocksFromXml(child, blocks, listType, taskChecked);
       }
@@ -150,6 +159,7 @@ interface DiffBlock {
   segments: DiffSegment[];
   checked?: boolean; // For task list items
   oldChecked?: boolean; // For showing checkbox state change
+  imageSrc?: string; // For image blocks
 }
 
 function computeSegmentDiff(oldSegments: FormattedSegment[], newSegments: FormattedSegment[]): { segments: DiffSegment[]; isStyleOnly: boolean } {
@@ -405,6 +415,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
               type: oldBlocks[o].type,
               status: "removed",
               segments: oldBlocks[o].content.map(s => ({ type: "removed" as const, segment: s })),
+              imageSrc: oldBlocks[o].imageSrc,
             });
             processedOld.add(o);
           }
@@ -435,6 +446,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
             : segments,
           checked: newBlock.checked,
           oldChecked: checkboxChanged ? oldBlock.checked : undefined,
+          imageSrc: newBlock.imageSrc,
         });
       } else if (sameText && !sameType) {
         // Block type changed (paragraph → heading)
@@ -443,6 +455,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
           status: "style-only",
           segments: newBlock.content.map(s => ({ type: "style-changed" as const, segment: s })),
           checked: newBlock.checked,
+          imageSrc: newBlock.imageSrc,
         });
       } else {
         // Text changed
@@ -452,6 +465,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
           status: "modified",
           segments,
           checked: newBlock.checked,
+          imageSrc: newBlock.imageSrc,
         });
       }
     } else {
@@ -461,6 +475,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
         status: "added",
         segments: newBlock.content.map(s => ({ type: "added" as const, segment: s })),
         checked: newBlock.checked,
+        imageSrc: newBlock.imageSrc,
       });
     }
   }
@@ -473,6 +488,7 @@ function compareBlocks(oldBlocks: Block[], newBlocks: Block[]): DiffBlock[] {
         status: "removed",
         segments: oldBlocks[o].content.map(s => ({ type: "removed" as const, segment: s })),
         checked: oldBlocks[o].checked,
+        imageSrc: oldBlocks[o].imageSrc,
       });
     }
   }
@@ -622,6 +638,32 @@ function DiffBlockView({ block, listIndex }: { block: DiffBlock; listIndex?: num
             {content}
           </Box>
         </HStack>
+      );
+    }
+    case "image": {
+      // Image placeholder with indicator
+      const statusColor = block.status === "added" ? "green"
+        : block.status === "removed" ? "red"
+        : "gray";
+      return (
+        <Box py={2} {...borderProps}>
+          <HStack
+            p={3}
+            bg={`${statusColor}.50`}
+            border="1px dashed"
+            borderColor={`${statusColor}.300`}
+            borderRadius="md"
+            justify="center"
+            opacity={block.status === "removed" ? 0.6 : 1}
+          >
+            <Text fontSize="2xl">🖼️</Text>
+            <Text fontSize="sm" color={`${statusColor}.600`} fontWeight="medium">
+              {block.status === "added" ? "Image added"
+                : block.status === "removed" ? "Image removed"
+                : "Image"}
+            </Text>
+          </HStack>
+        </Box>
       );
     }
     default:
