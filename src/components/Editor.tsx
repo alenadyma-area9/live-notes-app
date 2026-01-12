@@ -843,7 +843,7 @@ export function CollaborativeEditor({
 
   const editorStyles = {
     "& .ProseMirror": {
-      minHeight: isMobile ? "200px" : "400px",
+      minHeight: "100%",
       outline: "none",
       color: "#1a1a1a",
       lineHeight: "1.7",
@@ -1501,7 +1501,7 @@ export function CollaborativeEditor({
             </HStack>
           )}
           {viewMode === "editing" && (
-            <Box p={{ base: 4, md: 4 }} pt={{ base: 3, md: 3 }} css={editorStyles}>
+            <Box p={{ base: 4, md: 4 }} pt={{ base: 3, md: 3 }} flex={1} display="flex" flexDirection="column" css={editorStyles}>
               {editor && (
                 <BubbleMenu
                   editor={editor}
@@ -1549,7 +1549,9 @@ export function CollaborativeEditor({
                   </HStack>
                 </BubbleMenu>
               )}
-              <EditorContent editor={editor} />
+              <Box flex={1}>
+                <EditorContent editor={editor} />
+              </Box>
             </Box>
           )}
 

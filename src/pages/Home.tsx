@@ -905,7 +905,15 @@ export function Home() {
                               {note.ownerName && (
                                 <>
                                   <Text>·</Text>
-                                  <Text whiteSpace="nowrap">by {note.ownerName}</Text>
+                                  <Text
+                                    whiteSpace="nowrap"
+                                    textTransform="uppercase"
+                                    letterSpacing="wide"
+                                    fontWeight="medium"
+                                    fontSize="2xs"
+                                  >
+                                    by {note.ownerName}
+                                  </Text>
                                 </>
                               )}
                             </HStack>
@@ -1024,8 +1032,8 @@ export function Home() {
                           </Box>
                         )}
 
-                        {/* Content area - reduced opacity when locked */}
-                        <Box p={4} pb={14} opacity={note.isLocked ? 0.5 : 1}>
+                        {/* Content area - reduced opacity when locked, extra right padding when locked to avoid badge overlap */}
+                        <Box p={4} pb={14} pr={note.isLocked ? 16 : 4} opacity={note.isLocked ? 0.5 : 1}>
                           {/* Title at top */}
                           <TruncatedText
                             fontWeight="semibold"

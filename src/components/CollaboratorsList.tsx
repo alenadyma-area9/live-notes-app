@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { HStack, Box, Text, Tooltip } from "@chakra-ui/react";
+import { useEffect, useState, useRef } from "react";
+import { HStack, Box, Text, Tooltip, Popover, Portal, VStack } from "@chakra-ui/react";
 import type YPartyKitProvider from "y-partykit/provider";
 import { useAppStore } from "../store";
 
@@ -19,6 +19,8 @@ interface CollaboratorsListProps {
 export function CollaboratorsList({ provider, currentUser, maxDisplay = 4, showCurrentUser = true }: CollaboratorsListProps) {
   const { userId } = useAppStore();
   const [collaborators, setCollaborators] = useState<Map<string, Collaborator>>(new Map());
+  const [mobilePopoverOpen, setMobilePopoverOpen] = useState(false);
+  const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
 
   useEffect(() => {
     const awareness = provider.awareness;
@@ -76,6 +78,92 @@ export function CollaboratorsList({ provider, currentUser, maxDisplay = 4, showC
   // Avatar size: smaller when not showing current user (others only)
   const avatarSize = showCurrentUser ? 8 : 7;
 
+  // On mobile, wrap entire avatar list in a popover for tap-to-show-names
+  if (isTouchDevice.current) {
+    return (
+      <Popover.Root open={mobilePopoverOpen} onOpenChange={(e) => setMobilePopoverOpen(e.open)}>
+        <Popover.Trigger asChild>
+          <HStack gap={0} cursor="pointer" onClick={() => setMobilePopoverOpen(true)}>
+            {visibleUsers.map((user, index) => (
+              <Box
+                key={user.id}
+                w={avatarSize}
+                h={avatarSize}
+                borderRadius="full"
+                bg={user.color}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                border="2px solid white"
+                boxShadow={user.isMe ? "0 0 0 2px " + user.color : "sm"}
+                position="relative"
+                zIndex={visibleUsers.length - index}
+                ml={index > 0 ? -2 : 0}
+              >
+                <Text fontSize="xs" fontWeight="bold" color="white">
+                  {user.name.charAt(0).toUpperCase()}
+                </Text>
+              </Box>
+            ))}
+
+            {hiddenCount > 0 && (
+              <Box
+                w={avatarSize}
+                h={avatarSize}
+                borderRadius="full"
+                bg="gray.400"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                border="2px solid white"
+                boxShadow="sm"
+                ml={-2}
+                zIndex={0}
+              >
+                <Text fontSize="xs" fontWeight="bold" color="white">
+                  +{hiddenCount}
+                </Text>
+              </Box>
+            )}
+          </HStack>
+        </Popover.Trigger>
+        <Portal>
+          <Popover.Positioner>
+            <Popover.Content maxW="200px" p={3}>
+              <VStack align="start" gap={2}>
+                <Text fontSize="xs" fontWeight="semibold" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                  Collaborators
+                </Text>
+                {allUsers.map((user) => (
+                  <HStack key={user.id} gap={2}>
+                    <Box
+                      w={5}
+                      h={5}
+                      borderRadius="full"
+                      bg={user.color}
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="center"
+                      flexShrink={0}
+                    >
+                      <Text fontSize="2xs" fontWeight="bold" color="white">
+                        {user.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </Box>
+                    <Text fontSize="sm" color="gray.700">
+                      {user.name}{user.isMe ? " (you)" : ""}
+                    </Text>
+                  </HStack>
+                ))}
+              </VStack>
+            </Popover.Content>
+          </Popover.Positioner>
+        </Portal>
+      </Popover.Root>
+    );
+  }
+
+  // Desktop: use tooltips on hover
   return (
     <HStack gap={0}>
       {visibleUsers.map((user, index) => (
