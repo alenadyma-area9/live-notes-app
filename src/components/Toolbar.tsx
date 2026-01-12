@@ -524,20 +524,30 @@ export function Toolbar({ editor }: ToolbarProps) {
           isOpen={linkDialogOpen}
           onClose={() => setLinkDialogOpen(false)}
           onSubmit={(url) => {
+            // Ensure URL has a protocol - prepend https:// if missing
+            let normalizedUrl = url.trim();
+            if (normalizedUrl && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(normalizedUrl)) {
+              normalizedUrl = `https://${normalizedUrl}`;
+            }
+
             if (existingLinkUrl) {
               // Extend selection to entire link before updating
-              editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+              editor.chain().focus().extendMarkRange('link').setLink({ href: normalizedUrl }).run();
             } else if (editor.state.selection.empty) {
               // No selection - insert URL as linked text
-              editor.chain().focus().insertContent(`<a href="${url}">${url}</a>`).run();
+              editor.chain().focus().insertContent(`<a href="${normalizedUrl}">${normalizedUrl}</a>`).run();
             } else {
-              editor.chain().focus().setLink({ href: url }).run();
+              editor.chain().focus().setLink({ href: normalizedUrl }).run();
             }
           }}
+          onRemove={existingLinkUrl ? () => {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run();
+          } : undefined}
           title={existingLinkUrl ? "Edit Link" : "Add Link"}
           placeholder="https://example.com"
           initialValue={existingLinkUrl}
-          submitText={existingLinkUrl ? "Update Link" : "Add Link"}
+          submitText={existingLinkUrl ? "Update" : "Add Link"}
+          removeText="Remove"
         />
       </HStack>
     );
@@ -875,20 +885,30 @@ export function Toolbar({ editor }: ToolbarProps) {
         isOpen={linkDialogOpen}
         onClose={() => setLinkDialogOpen(false)}
         onSubmit={(url) => {
+          // Ensure URL has a protocol - prepend https:// if missing
+          let normalizedUrl = url.trim();
+          if (normalizedUrl && !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(normalizedUrl)) {
+            normalizedUrl = `https://${normalizedUrl}`;
+          }
+
           if (existingLinkUrl) {
             // Extend selection to entire link before updating
-            editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+            editor.chain().focus().extendMarkRange('link').setLink({ href: normalizedUrl }).run();
           } else if (editor.state.selection.empty) {
             // No selection - insert URL as linked text
-            editor.chain().focus().insertContent(`<a href="${url}">${url}</a>`).run();
+            editor.chain().focus().insertContent(`<a href="${normalizedUrl}">${normalizedUrl}</a>`).run();
           } else {
-            editor.chain().focus().setLink({ href: url }).run();
+            editor.chain().focus().setLink({ href: normalizedUrl }).run();
           }
         }}
+        onRemove={existingLinkUrl ? () => {
+          editor.chain().focus().extendMarkRange('link').unsetLink().run();
+        } : undefined}
         title={existingLinkUrl ? "Edit Link" : "Add Link"}
         placeholder="https://example.com"
         initialValue={existingLinkUrl}
-        submitText={existingLinkUrl ? "Update Link" : "Add Link"}
+        submitText={existingLinkUrl ? "Update" : "Add Link"}
+        removeText="Remove"
       />
     </HStack>
   );

@@ -380,22 +380,26 @@ interface InputDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (value: string) => void;
+  onRemove?: () => void;
   title: string;
   placeholder?: string;
   initialValue?: string;
   submitText?: string;
   cancelText?: string;
+  removeText?: string;
 }
 
 export function InputDialog({
   isOpen,
   onClose,
   onSubmit,
+  onRemove,
   title,
   placeholder = "",
   initialValue = "",
   submitText = "Add",
   cancelText = "Cancel",
+  removeText = "Remove",
 }: InputDialogProps) {
   const [value, setValue] = useState(initialValue);
 
@@ -417,6 +421,11 @@ export function InputDialog({
       onSubmit(value.trim());
       onClose();
     }
+  };
+
+  const handleRemove = () => {
+    onRemove?.();
+    onClose();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -494,27 +503,56 @@ export function InputDialog({
                 borderTop="1px solid"
                 borderColor="gray.100"
               >
-                <Button
-                  flex={1}
-                  variant="outline"
-                  onClick={onClose}
-                  size="md"
-                  borderRadius="lg"
-                >
-                  {cancelText}
-                </Button>
-                <Button
-                  flex={1}
-                  bg="#6366F1"
-                  color="white"
-                  _hover={{ bg: "#4F46E5" }}
-                  onClick={handleSubmit}
-                  disabled={!value.trim()}
-                  size="md"
-                  borderRadius="lg"
-                >
-                  {submitText}
-                </Button>
+                {onRemove ? (
+                  <>
+                    <Button
+                      flex={1}
+                      variant="outline"
+                      colorPalette="red"
+                      onClick={handleRemove}
+                      size="md"
+                      borderRadius="lg"
+                    >
+                      {removeText}
+                    </Button>
+                    <Button
+                      flex={1}
+                      bg="#6366F1"
+                      color="white"
+                      _hover={{ bg: "#4F46E5" }}
+                      onClick={handleSubmit}
+                      disabled={!value.trim()}
+                      size="md"
+                      borderRadius="lg"
+                    >
+                      {submitText}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      flex={1}
+                      variant="outline"
+                      onClick={onClose}
+                      size="md"
+                      borderRadius="lg"
+                    >
+                      {cancelText}
+                    </Button>
+                    <Button
+                      flex={1}
+                      bg="#6366F1"
+                      color="white"
+                      _hover={{ bg: "#4F46E5" }}
+                      onClick={handleSubmit}
+                      disabled={!value.trim()}
+                      size="md"
+                      borderRadius="lg"
+                    >
+                      {submitText}
+                    </Button>
+                  </>
+                )}
               </HStack>
             </VStack>
           </Dialog.Content>

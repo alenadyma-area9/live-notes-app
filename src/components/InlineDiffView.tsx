@@ -641,28 +641,60 @@ function DiffBlockView({ block, listIndex }: { block: DiffBlock; listIndex?: num
       );
     }
     case "image": {
-      // Image placeholder with indicator
+      // Show actual image with status indicator
       const statusColor = block.status === "added" ? "green"
         : block.status === "removed" ? "red"
         : "gray";
       return (
         <Box py={2} {...borderProps}>
-          <HStack
-            p={3}
-            bg={`${statusColor}.50`}
-            border="1px dashed"
-            borderColor={`${statusColor}.300`}
-            borderRadius="md"
-            justify="center"
-            opacity={block.status === "removed" ? 0.6 : 1}
-          >
-            <Text fontSize="2xl">🖼️</Text>
-            <Text fontSize="sm" color={`${statusColor}.600`} fontWeight="medium">
-              {block.status === "added" ? "Image added"
-                : block.status === "removed" ? "Image removed"
-                : "Image"}
-            </Text>
-          </HStack>
+          <Box position="relative" display="inline-block">
+            {block.imageSrc ? (
+              <Box
+                as="img"
+                src={block.imageSrc}
+                alt="Image"
+                maxW="min(100%, 400px)"
+                h="auto"
+                borderRadius="md"
+                opacity={block.status === "removed" ? 0.5 : 1}
+                border="2px solid"
+                borderColor={block.status === "added" ? "green.400"
+                  : block.status === "removed" ? "red.400"
+                  : "transparent"}
+                filter={block.status === "removed" ? "grayscale(50%)" : undefined}
+              />
+            ) : (
+              <HStack
+                p={3}
+                bg={`${statusColor}.50`}
+                border="1px dashed"
+                borderColor={`${statusColor}.300`}
+                borderRadius="md"
+                justify="center"
+              >
+                <Text fontSize="2xl">🖼️</Text>
+                <Text fontSize="sm" color={`${statusColor}.600`}>Image</Text>
+              </HStack>
+            )}
+            {block.status !== "unchanged" && (
+              <Text
+                position="absolute"
+                top={1}
+                right={1}
+                fontSize="xs"
+                fontWeight="bold"
+                color="white"
+                bg={block.status === "added" ? "green.500"
+                  : block.status === "removed" ? "red.500"
+                  : "gray.500"}
+                px={2}
+                py={0.5}
+                borderRadius="md"
+              >
+                {block.status === "added" ? "NEW" : block.status === "removed" ? "REMOVED" : ""}
+              </Text>
+            )}
+          </Box>
         </Box>
       );
     }

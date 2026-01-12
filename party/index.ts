@@ -231,6 +231,22 @@ export default class YjsServer implements Party.Server {
       }
     }
 
+    // GET /exists - check if note exists (has been created)
+    if (req.method === "GET" && url.pathname.endsWith("/exists")) {
+      try {
+        // Check if note has any stored data
+        const hasCreation = await this.room.storage.get<boolean>("hasCreationEntry");
+        const hasSnapshot = await this.room.storage.get<string>("ydoc:default");
+        const versions = await this.room.storage.get<Version[]>("versions");
+
+        const exists = !!(hasCreation || hasSnapshot || (versions && versions.length > 0));
+        return Response.json({ exists }, { headers: corsHeaders });
+      } catch (err) {
+        console.error("Exists check error:", err);
+        return Response.json({ exists: false }, { headers: corsHeaders });
+      }
+    }
+
     // POST /save-version - force save version (on user leave)
     if (req.method === "POST" && url.pathname.endsWith("/save-version")) {
       // This is best-effort - don't fail if doc is unavailable
