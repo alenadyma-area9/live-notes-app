@@ -348,7 +348,7 @@ export function Home() {
   };
 
   return (
-    <Box minH="100vh" bg="#F8FAFC">
+    <Box h="100vh" bg="#F8FAFC" overflow="auto">
       <Header />
 
       {/* Toast notification */}

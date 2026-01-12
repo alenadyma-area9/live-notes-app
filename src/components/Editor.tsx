@@ -1341,27 +1341,23 @@ export function CollaborativeEditor({
             display="flex"
             flexDirection="column"
           >
-        {/* Toolbar / Status bar */}
-        {viewMode === "editing" ? (
+        {/* Desktop: Toolbar outside scroll area */}
+        {!isMobile && viewMode === "editing" && (
           <Box
             bg="gray.50"
             borderBottom="1px solid"
             borderColor="gray.100"
-            overflowX={{ base: "auto", md: "visible" }}
+            overflowX="visible"
             overflowY="hidden"
-            position={{ base: "sticky", md: "relative" }}
-            top={0}
-            zIndex={10}
-            css={{
-              "&::-webkit-scrollbar": { display: "none" },
-              scrollbarWidth: "none",
-            }}
           >
-            <Box minW={{ base: "max-content", md: "auto" }}>
+            <Box>
               <Toolbar editor={editor} />
             </Box>
           </Box>
-        ) : (
+        )}
+
+        {/* Desktop: Preview/Compare status bar */}
+        {!isMobile && viewMode !== "editing" && (
           <HStack
             px={4}
             py={2}
@@ -1387,8 +1383,59 @@ export function CollaborativeEditor({
           </HStack>
         )}
 
-        {/* Content area */}
+        {/* Content area - scrollable */}
         <Box flex={1} overflow="auto">
+          {/* Mobile: Sticky toolbar INSIDE scroll area */}
+          {isMobile && viewMode === "editing" && (
+            <Box
+              bg="gray.50"
+              borderBottom="1px solid"
+              borderColor="gray.100"
+              overflowX="auto"
+              overflowY="hidden"
+              position="sticky"
+              top={0}
+              zIndex={10}
+              css={{
+                "&::-webkit-scrollbar": { display: "none" },
+                scrollbarWidth: "none",
+              }}
+            >
+              <Box minW="max-content">
+                <Toolbar editor={editor} />
+              </Box>
+            </Box>
+          )}
+
+          {/* Mobile: Preview/Compare status bar */}
+          {isMobile && viewMode !== "editing" && (
+            <HStack
+              px={4}
+              py={2}
+              bg={viewMode === "preview" ? "purple.50" : "#EEF2FF"}
+              borderBottom="1px solid"
+              borderColor="gray.200"
+              justify="space-between"
+              position="sticky"
+              top={0}
+              zIndex={10}
+            >
+              <Text fontSize="sm" color={viewMode === "preview" ? "purple.700" : "#4338CA"} fontWeight="medium">
+                {viewMode === "preview" ? "Preview mode" : "Compare mode"}
+              </Text>
+              <Button
+                size="xs"
+                variant="outline"
+                colorPalette={viewMode === "preview" ? "purple" : "indigo"}
+                onClick={() => {
+                  handlePreview(null);
+                  handleCompare(null);
+                }}
+              >
+                Back to editing
+              </Button>
+            </HStack>
+          )}
           {viewMode === "editing" && (
             <Box p={{ base: 4, md: 4 }} pt={{ base: 3, md: 3 }} css={editorStyles}>
               {editor && (
