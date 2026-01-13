@@ -645,23 +645,24 @@ function DiffBlockView({ block, listIndex }: { block: DiffBlock; listIndex?: num
       const statusColor = block.status === "added" ? "green"
         : block.status === "removed" ? "red"
         : "gray";
+      const imgBorderColor = block.status === "added" ? "#48BB78"
+        : block.status === "removed" ? "#F56565"
+        : "transparent";
       return (
         <Box py={2} {...borderProps}>
           <Box position="relative" display="inline-block">
             {block.imageSrc ? (
-              <Box
-                as="img"
+              <img
                 src={block.imageSrc}
                 alt="Image"
-                maxW="min(100%, 400px)"
-                h="auto"
-                borderRadius="md"
-                opacity={block.status === "removed" ? 0.5 : 1}
-                border="2px solid"
-                borderColor={block.status === "added" ? "green.400"
-                  : block.status === "removed" ? "red.400"
-                  : "transparent"}
-                filter={block.status === "removed" ? "grayscale(50%)" : undefined}
+                style={{
+                  maxWidth: "min(100%, 400px)",
+                  height: "auto",
+                  borderRadius: "8px",
+                  opacity: block.status === "removed" ? 0.5 : 1,
+                  border: `2px solid ${imgBorderColor}`,
+                  filter: block.status === "removed" ? "grayscale(50%)" : undefined,
+                }}
               />
             ) : (
               <HStack
