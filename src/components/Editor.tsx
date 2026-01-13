@@ -219,11 +219,18 @@ export function CollaborativeEditor({
     if (!isConnected || !ydocRef.current) return;
 
     const duplicateKey = `duplicate:${noteId}`;
-    const duplicateData = sessionStorage.getItem(duplicateKey);
+    let duplicateData: string | null = null;
+
+    try {
+      duplicateData = sessionStorage.getItem(duplicateKey);
+      if (duplicateData) {
+        sessionStorage.removeItem(duplicateKey);
+      }
+    } catch (err) {
+      console.warn("[Duplicate] sessionStorage access failed:", err);
+    }
 
     if (duplicateData) {
-      sessionStorage.removeItem(duplicateKey);
-
       try {
         const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
 
@@ -238,6 +245,7 @@ export function CollaborativeEditor({
 
           // Apply the state to the Y.Doc (this includes old title and owner)
           Y.applyUpdate(ydocRef.current, state);
+          console.log("[Duplicate] Applied state from sessionStorage, size:", state.length);
         }
 
         // Set the NEW title and owner in Y.Doc meta (overwrites old values)
@@ -259,6 +267,31 @@ export function CollaborativeEditor({
         console.log("[Duplicate] Applied successfully, title:", newTitle);
       } catch (err) {
         console.error("[Duplicate] Failed to apply state:", err);
+      }
+    } else {
+      // No sessionStorage data - check if this is a duplicate note that needs title/owner update
+      // The state should have been loaded by y-partykit from /init persisted data
+      const duplicateTitleKey = `duplicateTitle:${noteId}`;
+      try {
+        const titleData = sessionStorage.getItem(duplicateTitleKey);
+        if (titleData) {
+          sessionStorage.removeItem(duplicateTitleKey);
+          const { title: newTitle } = JSON.parse(titleData);
+
+          // Just update title and owner, state was loaded by y-partykit
+          const meta = ydocRef.current.getMap("meta");
+          meta.set("title", newTitle);
+          meta.set("titleEdited", "true");
+          meta.set("ownerId", userId);
+          meta.set("ownerName", userName);
+
+          setTitle(newTitle);
+          onTitleChange?.(newTitle);
+          updateNoteOwner(noteId, userId, userName);
+          console.log("[Duplicate] Applied title from fallback, state loaded by server");
+        }
+      } catch {
+        // Ignore
       }
     }
   }, [isConnected, noteId, onTitleChange, userId, userName, updateNoteOwner]);
@@ -469,16 +502,9 @@ export function CollaborativeEditor({
       console.log("[Duplicate] New note ID:", newNoteId);
       console.log("[Duplicate] New title:", newTitle);
 
-      // Store in sessionStorage for immediate use when navigating
-      sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
-        state: stateBase64,
-        title: newTitle
-      }));
-      console.log("[Duplicate] Stored in sessionStorage");
-
-      // Also persist to server so it can be duplicated again from Home page
+      // Persist to server FIRST (this is the source of truth for large documents)
+      const protocol = partykitHost.includes("localhost") ? "http" : "https";
       try {
-        const protocol = partykitHost.includes("localhost") ? "http" : "https";
         await fetch(`${protocol}://${partykitHost}/parties/notes/${newNoteId}/init`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -487,10 +513,29 @@ export function CollaborativeEditor({
         console.log("[Duplicate] Persisted to server");
       } catch (err) {
         console.warn("[Duplicate] Failed to persist to server:", err);
+        showToast("Failed to duplicate note", "error");
+        return;
+      }
+
+      // Try to store in sessionStorage (may fail for large documents with images)
+      try {
+        sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+          state: stateBase64,
+          title: newTitle
+        }));
+        console.log("[Duplicate] Stored full state in sessionStorage");
+      } catch (storageErr) {
+        // sessionStorage quota exceeded - store just title as fallback
+        console.warn("[Duplicate] sessionStorage full, using fallback:", storageErr);
+        try {
+          sessionStorage.setItem(`duplicateTitle:${newNoteId}`, JSON.stringify({ title: newTitle }));
+        } catch {
+          // Even title storage failed, server has the data so we're OK
+        }
       }
 
       console.log("[Duplicate] Calling onDuplicate callback...");
-      setDuplicateDialogOpen(false); // Close dialog before navigating
+      setDuplicateDialogOpen(false);
       onDuplicate(newNoteId, newTitle);
     } catch (err) {
       console.error("[Duplicate] Failed:", err);
@@ -1482,7 +1527,21 @@ export function CollaborativeEditor({
             </HStack>
           )}
           {viewMode === "editing" && (
-            <Box p={{ base: 4, md: 4 }} pt={{ base: 3, md: 3 }} flex={1} display="flex" flexDirection="column" css={editorStyles}>
+            <Box
+              p={{ base: 4, md: 4 }}
+              pt={{ base: 3, md: 3 }}
+              flex={1}
+              display="flex"
+              flexDirection="column"
+              css={editorStyles}
+              onClick={(e) => {
+                // Focus editor when clicking empty space (not on existing content)
+                if (editor && e.target === e.currentTarget) {
+                  editor.commands.focus('end');
+                }
+              }}
+              cursor="text"
+            >
               {editor && (
                 <BubbleMenu
                   editor={editor}
@@ -1530,7 +1589,17 @@ export function CollaborativeEditor({
                   </HStack>
                 </BubbleMenu>
               )}
-              <Box flex={1}>
+              <Box
+                flex={1}
+                minH="200px"
+                onClick={(e) => {
+                  // Focus editor when clicking empty space below content
+                  if (editor && e.target === e.currentTarget) {
+                    editor.commands.focus('end');
+                  }
+                }}
+                cursor="text"
+              >
                 <EditorContent editor={editor} />
               </Box>
             </Box>

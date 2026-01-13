@@ -46,11 +46,11 @@ export function Header({ showNameInput = false }: HeaderProps) {
         >
           <LuPenLine size={18} />
         </Box>
-        <Box display={{ base: "none", sm: "block" }}>
+        <Box>
           <Text fontWeight="bold" fontSize="md" lineHeight="1.2">
             Live Notes
           </Text>
-          <Text fontSize="xs" color="gray.500" lineHeight="1.2">
+          <Text fontSize="xs" color="gray.500" lineHeight="1.2" display={{ base: "none", sm: "block" }}>
             Collaborate in real-time
           </Text>
         </Box>

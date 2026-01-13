@@ -184,13 +184,7 @@ export function Home() {
         console.warn("[Duplicate] Could not fetch source state:", fetchErr);
       }
 
-      // Store in sessionStorage for the new note to pick up when opened
-      sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
-        state: stateToUse,
-        title: newTitle
-      }));
-
-      // Also persist to server if we have state
+      // Persist to server FIRST (this is the source of truth for large documents with images)
       if (stateToUse) {
         try {
           await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
@@ -198,8 +192,26 @@ export function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ state: stateToUse, title: newTitle }),
           });
+          console.log("[Duplicate] Persisted to server");
         } catch (initErr) {
           console.warn("[Duplicate] Could not persist to server:", initErr);
+        }
+      }
+
+      // Try to store in sessionStorage (may fail for large documents with images)
+      try {
+        sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
+          state: stateToUse,
+          title: newTitle
+        }));
+        console.log("[Duplicate] Stored full state in sessionStorage");
+      } catch (storageErr) {
+        // sessionStorage quota exceeded - store just title as fallback
+        console.warn("[Duplicate] sessionStorage full, using fallback:", storageErr);
+        try {
+          sessionStorage.setItem(`duplicateTitle:${newNoteId}`, JSON.stringify({ title: newTitle }));
+        } catch {
+          // Even title storage failed, server has the data so we're OK
         }
       }
 
