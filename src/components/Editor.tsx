@@ -14,7 +14,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical, LuCircleX } from "react-icons/lu";
+import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical, LuCircleX, LuImage } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
@@ -1074,8 +1074,8 @@ export function CollaborativeEditor({
             flexShrink={0}
             display="flex"
             alignItems="center"
-            px={3}
-            gap={2}
+            px={2}
+            gap={1}
           >
             {/* Back Arrow */}
             <IconButton
@@ -1092,25 +1092,136 @@ export function CollaborativeEditor({
             {/* Spacer */}
             <Box flex={1} />
 
-            {/* Share */}
-            {onShare && (
-              <IconButton
-                aria-label="Share"
-                variant="ghost"
-                size="sm"
-                onClick={isLocked ? undefined : () => {
-                  onShare();
-                  showToast("Link copied!", "success");
-                }}
-                color={shareButtonState === "copied" ? "green.600" : "gray.600"}
-                disabled={isLocked}
-                opacity={isLocked ? 0.4 : 1}
-              >
-                {shareButtonState === "copied" ? <LuCheck size={20} /> : <LuShare2 size={20} />}
-              </IconButton>
+            {/* Styling Menu (Aa icon) */}
+            {viewMode === "editing" && editor && (
+              <Menu.Root positioning={{ placement: "bottom-end" }}>
+                <Menu.Trigger asChild>
+                  <IconButton
+                    aria-label="Text formatting"
+                    variant="ghost"
+                    size="sm"
+                    color="gray.600"
+                  >
+                    <Text fontWeight="bold" fontSize="md">Aa</Text>
+                  </IconButton>
+                </Menu.Trigger>
+                <Portal>
+                  <Menu.Positioner>
+                    <Menu.Content minW="160px">
+                      <Menu.Item value="bold" onClick={() => editor.chain().focus().toggleBold().run()}>
+                        <Text fontWeight="bold">B</Text>
+                        <Text>Bold</Text>
+                        {editor.isActive('bold') && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Item value="italic" onClick={() => editor.chain().focus().toggleItalic().run()}>
+                        <Text fontStyle="italic">I</Text>
+                        <Text>Italic</Text>
+                        {editor.isActive('italic') && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Item value="strike" onClick={() => editor.chain().focus().toggleStrike().run()}>
+                        <Text textDecoration="line-through">S</Text>
+                        <Text>Strikethrough</Text>
+                        {editor.isActive('strike') && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Separator />
+                      <Menu.Item value="h1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
+                        <Text fontWeight="bold">H1</Text>
+                        <Text>Heading 1</Text>
+                        {editor.isActive('heading', { level: 1 }) && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Item value="h2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+                        <Text fontWeight="bold">H2</Text>
+                        <Text>Heading 2</Text>
+                        {editor.isActive('heading', { level: 2 }) && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Item value="h3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+                        <Text fontWeight="bold">H3</Text>
+                        <Text>Heading 3</Text>
+                        {editor.isActive('heading', { level: 3 }) && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Separator />
+                      <Menu.Item value="bullet" onClick={() => editor.chain().focus().toggleBulletList().run()}>
+                        <Text>•</Text>
+                        <Text>Bullet list</Text>
+                        {editor.isActive('bulletList') && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Item value="ordered" onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+                        <Text>1.</Text>
+                        <Text>Numbered list</Text>
+                        {editor.isActive('orderedList') && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Item value="task" onClick={() => editor.chain().focus().toggleTaskList().run()}>
+                        <Text>☑</Text>
+                        <Text>Task list</Text>
+                        {editor.isActive('taskList') && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Separator />
+                      <Menu.Item value="clear" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
+                        <LuCircleX />
+                        <Text>Clear formatting</Text>
+                      </Menu.Item>
+                    </Menu.Content>
+                  </Menu.Positioner>
+                </Portal>
+              </Menu.Root>
             )}
 
-            {/* More Menu (Lock, Duplicate, Delete, History, Save) */}
+            {/* Insert Menu (+ icon) */}
+            {viewMode === "editing" && editor && (
+              <Menu.Root positioning={{ placement: "bottom-end" }}>
+                <Menu.Trigger asChild>
+                  <IconButton
+                    aria-label="Insert"
+                    variant="ghost"
+                    size="sm"
+                    color="gray.600"
+                  >
+                    <Text fontWeight="bold" fontSize="lg">+</Text>
+                  </IconButton>
+                </Menu.Trigger>
+                <Portal>
+                  <Menu.Positioner>
+                    <Menu.Content minW="160px">
+                      <Menu.Item value="link" onClick={() => {
+                        const url = prompt('Enter URL:');
+                        if (url) {
+                          const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
+                          editor.chain().focus().setLink({ href: normalizedUrl }).run();
+                        }
+                      }}>
+                        <LuExternalLink />
+                        <Text>Add link</Text>
+                      </Menu.Item>
+                      <Menu.Item value="image" onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) {
+                            if (file.size > 5 * 1024 * 1024) {
+                              showToast("Image too large (max 5MB)", "error");
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              editor.chain().focus().setImage({ src: reader.result as string }).run();
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        };
+                        input.click();
+                      }}>
+                        <LuImage />
+                        <Text>Add image</Text>
+                      </Menu.Item>
+                    </Menu.Content>
+                  </Menu.Positioner>
+                </Portal>
+              </Menu.Root>
+            )}
+
+            {/* More Menu (Share, Save, History, Duplicate, Lock, Delete) */}
             <Menu.Root positioning={{ placement: "bottom-end" }}>
               <Menu.Trigger asChild>
                 <IconButton
@@ -1125,6 +1236,19 @@ export function CollaborativeEditor({
               <Portal>
                 <Menu.Positioner>
                   <Menu.Content minW="180px">
+                    {onShare && (
+                      <Menu.Item
+                        value="share"
+                        onClick={isLocked ? undefined : () => {
+                          onShare();
+                          showToast("Link copied!", "success");
+                        }}
+                        disabled={isLocked}
+                      >
+                        <LuShare2 />
+                        <Text>Copy link</Text>
+                      </Menu.Item>
+                    )}
                     <Menu.Item value="save" onClick={handleManualSave}>
                       <LuSave />
                       <Text>Save version</Text>
@@ -1157,7 +1281,7 @@ export function CollaborativeEditor({
               </Portal>
             </Menu.Root>
 
-            {/* Collaborators + You - all tappable to show names */}
+            {/* Collaborators + You */}
             <CollaboratorsList
               provider={provider}
               currentUser={{ name: userName, color: userColor }}
@@ -1537,28 +1661,6 @@ export function CollaborativeEditor({
 
         {/* Content area - scrollable */}
         <Box flex={1} overflow="auto">
-          {/* Mobile: Sticky toolbar INSIDE scroll area */}
-          {isMobile && viewMode === "editing" && (
-            <Box
-              bg="gray.50"
-              borderBottom="1px solid"
-              borderColor="gray.100"
-              overflowX="auto"
-              overflowY="hidden"
-              position="sticky"
-              top={0}
-              zIndex={10}
-              css={{
-                "&::-webkit-scrollbar": { display: "none" },
-                scrollbarWidth: "none",
-              }}
-            >
-              <Box minW="max-content">
-                <Toolbar editor={editor} />
-              </Box>
-            </Box>
-          )}
-
           {/* Mobile: Preview/Compare status bar */}
           {isMobile && viewMode !== "editing" && (
             <HStack
@@ -1604,8 +1706,8 @@ export function CollaborativeEditor({
               }}
               cursor="text"
             >
-              {/* Formatting BubbleMenu - shows on text selection (great for mobile) */}
-              {editor && (
+              {/* Formatting BubbleMenu - desktop only (mobile has header menus) */}
+              {editor && !isMobile && (
                 <BubbleMenu
                   editor={editor}
                   shouldShow={({ editor, state }) => {
