@@ -298,38 +298,17 @@ export default class YjsServer implements Party.Server {
     // GET /state - get current document state (for duplication)
     if (req.method === "GET" && url.pathname.endsWith("/state")) {
       try {
-        let stateBase64: string | undefined;
-        let title = "";
+        // Get the Y.Doc (creates/loads from persistence if needed)
+        const ydoc = await unstable_getYDoc(this.room, { persist: { mode: "snapshot" } });
 
-        // Try to get live Y.Doc first (if there are active connections)
-        try {
-          const ydoc = await unstable_getYDoc(this.room);
-          if (ydoc) {
-            const state = Y.encodeStateAsUpdate(ydoc);
-            stateBase64 = uint8ArrayToBase64(state);
-            const meta = ydoc.getMap("meta");
-            title = (meta.get("title") as string) || "";
-          }
-        } catch {
-          // Y.Doc not available (no active connections) - fall back to snapshot
-        }
-
-        // Fall back to persisted snapshot if Y.Doc unavailable
-        if (!stateBase64) {
-          stateBase64 = await this.room.storage.get<string>("ydoc:default");
-          if (stateBase64) {
-            // Extract title from the snapshot
-            const tempDoc = new Y.Doc();
-            Y.applyUpdate(tempDoc, base64ToUint8Array(stateBase64));
-            const meta = tempDoc.getMap("meta");
-            title = (meta.get("title") as string) || "";
-            tempDoc.destroy();
-          }
-        }
-
-        if (!stateBase64) {
+        if (!ydoc) {
           return Response.json({ error: "Document not found" }, { status: 404, headers: corsHeaders });
         }
+
+        const state = Y.encodeStateAsUpdate(ydoc);
+        const stateBase64 = uint8ArrayToBase64(state);
+        const meta = ydoc.getMap("meta");
+        const title = (meta.get("title") as string) || "";
 
         return Response.json({ state: stateBase64, title }, { headers: corsHeaders });
       } catch (err) {

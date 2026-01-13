@@ -123,58 +123,6 @@ export function CollaborativeEditor({
   // Initialize once
   if (!ydocRef.current) {
     ydocRef.current = new Y.Doc();
-
-    // Apply duplicate state BEFORE connecting to server
-    // This ensures the client has content before sync, so it syncs TO the server
-    const duplicateKey = `duplicate:${noteId}`;
-    const duplicateTitleKey = `duplicateTitle:${noteId}`;
-    try {
-      const duplicateData = sessionStorage.getItem(duplicateKey);
-      if (duplicateData) {
-        sessionStorage.removeItem(duplicateKey);
-        const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
-
-        if (stateBase64) {
-          const binary = atob(stateBase64);
-          const state = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            state[i] = binary.charCodeAt(i);
-          }
-          Y.applyUpdate(ydocRef.current, state);
-          console.log("[Duplicate] Applied state BEFORE connect, size:", state.length);
-        }
-
-        // Set title and owner in meta
-        const meta = ydocRef.current.getMap("meta");
-        if (newTitle) {
-          meta.set("title", newTitle);
-          meta.set("titleEdited", "true");
-        }
-        meta.set("ownerId", userId);
-        meta.set("ownerName", userName);
-        meta.set("locked", false);
-        meta.delete("deleted");
-      } else {
-        // Check for title-only fallback (large docs that exceeded sessionStorage)
-        const titleData = sessionStorage.getItem(duplicateTitleKey);
-        if (titleData) {
-          sessionStorage.removeItem(duplicateTitleKey);
-          const { title: newTitle } = JSON.parse(titleData);
-          const meta = ydocRef.current.getMap("meta");
-          if (newTitle) {
-            meta.set("title", newTitle);
-            meta.set("titleEdited", "true");
-          }
-          meta.set("ownerId", userId);
-          meta.set("ownerName", userName);
-          meta.set("locked", false);
-          meta.delete("deleted");
-          console.log("[Duplicate] Applied title-only fallback, server should have content");
-        }
-      }
-    } catch (err) {
-      console.error("[Duplicate] Failed to apply pre-connect state:", err);
-    }
   }
   if (!providerRef.current) {
     providerRef.current = new YPartyKitProvider(
@@ -267,20 +215,71 @@ export function CollaborativeEditor({
     }
   }, [userName, userColor, isConnected, registerUser]);
 
-  // Update store with owner info after duplicate (state was applied before connect)
-  // The titleMap observer handles React state updates
+  // Apply duplicate state from sessionStorage after connection
   useEffect(() => {
     if (!isConnected || !ydocRef.current) return;
 
-    // Check if this was a duplicate and update the store
-    const meta = ydocRef.current.getMap("meta");
-    const metaOwnerId = meta.get("ownerId") as string | undefined;
-    const metaOwnerName = meta.get("ownerName") as string | undefined;
+    const duplicateKey = `duplicate:${noteId}`;
+    const duplicateTitleKey = `duplicateTitle:${noteId}`;
 
-    if (metaOwnerId && metaOwnerName) {
-      updateNoteOwner(noteId, metaOwnerId, metaOwnerName);
+    try {
+      const duplicateData = sessionStorage.getItem(duplicateKey);
+      if (duplicateData) {
+        sessionStorage.removeItem(duplicateKey);
+        const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
+
+        if (stateBase64) {
+          const binary = atob(stateBase64);
+          const state = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            state[i] = binary.charCodeAt(i);
+          }
+          Y.applyUpdate(ydocRef.current, state);
+          console.log("[Duplicate] Applied state after connect, size:", state.length);
+        }
+
+        // Set title and owner
+        const meta = ydocRef.current.getMap("meta");
+        if (newTitle) {
+          meta.set("title", newTitle);
+          meta.set("titleEdited", "true");
+        }
+        meta.set("ownerId", userId);
+        meta.set("ownerName", userName);
+        meta.set("locked", false);
+        meta.delete("deleted");
+
+        setTitle(newTitle);
+        onTitleChange?.(newTitle);
+        updateNoteOwner(noteId, userId, userName);
+        console.log("[Duplicate] Applied successfully, title:", newTitle);
+      } else {
+        // Check for title-only fallback
+        const titleData = sessionStorage.getItem(duplicateTitleKey);
+        if (titleData) {
+          sessionStorage.removeItem(duplicateTitleKey);
+          const { title: newTitle } = JSON.parse(titleData);
+
+          const meta = ydocRef.current.getMap("meta");
+          if (newTitle) {
+            meta.set("title", newTitle);
+            meta.set("titleEdited", "true");
+          }
+          meta.set("ownerId", userId);
+          meta.set("ownerName", userName);
+          meta.set("locked", false);
+          meta.delete("deleted");
+
+          setTitle(newTitle);
+          onTitleChange?.(newTitle);
+          updateNoteOwner(noteId, userId, userName);
+          console.log("[Duplicate] Applied title-only fallback");
+        }
+      }
+    } catch (err) {
+      console.error("[Duplicate] Failed to apply state:", err);
     }
-  }, [isConnected, noteId, updateNoteOwner]);
+  }, [isConnected, noteId, userId, userName, onTitleChange, updateNoteOwner]);
 
   useEffect(() => {
     const updateMeta = () => {
