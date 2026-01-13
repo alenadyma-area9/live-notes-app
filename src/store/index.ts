@@ -37,7 +37,7 @@ export const useAppStore = create<AppState & AppActions>()(
       userName: getRandomName(),
       userColor: getColorForUser(initialUserId),
       recentNotes: [],
-      viewType: "list",
+      viewType: "grid",
 
       setUserName: (name: string) => set({ userName: name }),
       setViewType: (viewType: ViewType) => set({ viewType }),
