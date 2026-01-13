@@ -1256,6 +1256,14 @@ export function CollaborativeEditor({
               </Text>
             )}
           </Box>
+
+          {/* Locked indicator bar */}
+          {isLocked && (
+            <HStack bg="orange.100" px={4} py={1.5} gap={2}>
+              <LuLock size={14} color="#c2410c" />
+              <Text fontSize="xs" color="orange.700">This note is locked</Text>
+            </HStack>
+          )}
         </>
       ) : (
         /* Desktop Top Bar */
