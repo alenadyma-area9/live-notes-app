@@ -75,6 +75,7 @@ export function CollaborativeEditor({
   const { userName, userColor, userId, recentNotes, updateNoteOwner, removeRecentNote, updateNotePreview, updateNoteLocked, isNoteOwner } = useAppStore();
   const isMobile = useBreakpointValue({ base: true, md: false });
   const [isConnected, setIsConnected] = useState(false);
+  const [isSynced, setIsSynced] = useState(false);
   const [isUserRegistered, setIsUserRegistered] = useState(false);
   const [hasConnectedOnce, setHasConnectedOnce] = useState(false);
   const isOwner = isNoteOwner(noteId);
@@ -196,7 +197,14 @@ export function CollaborativeEditor({
       }
     };
 
+    const onSync = (synced: boolean) => {
+      if (synced) {
+        setIsSynced(true);
+      }
+    };
+
     provider.on("status", onStatus);
+    provider.on("synced", onSync);
 
     if (provider.wsconnected) {
       setIsConnected(true);
@@ -204,8 +212,13 @@ export function CollaborativeEditor({
       registerUser();
     }
 
+    if (provider.synced) {
+      setIsSynced(true);
+    }
+
     return () => {
       provider.off("status", onStatus);
+      provider.off("synced", onSync);
     };
   }, [provider, registerUser]);
 
@@ -760,7 +773,8 @@ export function CollaborativeEditor({
 
 
   // Only show full loading screen on initial connection, not on reconnections
-  if (!hasConnectedOnce) {
+  // Show loading while connecting or syncing
+  if (!hasConnectedOnce || !isSynced) {
     return (
       <VStack h="100%" justify="center" align="center" gap={4}>
         <Box
@@ -802,7 +816,7 @@ export function CollaborativeEditor({
           </Box>
         </Box>
         <Text color="gray.500" fontSize="sm" fontWeight="medium">
-          Connecting to note...
+          {!hasConnectedOnce ? "Connecting..." : "Loading note..."}
         </Text>
       </VStack>
     );
