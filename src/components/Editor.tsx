@@ -255,6 +255,9 @@ export function CollaborativeEditor({
         // Reset owner to current user (the one who duplicated)
         meta.set("ownerId", userId);
         meta.set("ownerName", userName);
+        // Ensure duplicate is not locked or deleted
+        meta.set("locked", false);
+        meta.set("deleted", false);
 
         // Set React state directly AND after a tick to beat any observer race
         setTitle(newTitle);
@@ -284,6 +287,9 @@ export function CollaborativeEditor({
           meta.set("titleEdited", "true");
           meta.set("ownerId", userId);
           meta.set("ownerName", userName);
+          // Ensure duplicate is not locked or deleted
+          meta.set("locked", false);
+          meta.set("deleted", false);
 
           setTitle(newTitle);
           onTitleChange?.(newTitle);
@@ -463,10 +469,26 @@ export function CollaborativeEditor({
 
 
 
-  const handleLockConfirm = useCallback(() => {
-    titleMap.set("locked", !isLocked);
+  const handleLockConfirm = useCallback(async () => {
+    const newLockedState = !isLocked;
+
+    // Update Yjs (propagates to connected clients immediately)
+    titleMap.set("locked", newLockedState);
+
+    // Also persist to server storage (source of truth for reconnects)
+    try {
+      const protocol = partykitHost.includes("localhost") ? "http" : "https";
+      await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locked: newLockedState }),
+      });
+    } catch (err) {
+      console.error("Failed to persist lock state:", err);
+    }
+
     setLockDialogOpen(false);
-  }, [titleMap, isLocked]);
+  }, [titleMap, isLocked, partykitHost, noteId]);
 
   const handleDuplicateConfirm = useCallback(async () => {
     console.log("[Duplicate] Starting from note page...");

@@ -322,8 +322,15 @@ export default class YjsServer implements Party.Server {
           await this.room.storage.put("initialTitle", body.title);
         }
 
+        // Ensure duplicate starts unlocked and not deleted
+        await this.room.storage.put("locked", false);
+        await this.room.storage.delete("deleted");
+
         // No versions for duplicated note
         await this.room.storage.put("versions", []);
+
+        // Mark as created so /exists returns true
+        await this.room.storage.put("hasCreationEntry", true);
 
         return Response.json({ success: true }, { headers: corsHeaders });
       } catch (err) {
