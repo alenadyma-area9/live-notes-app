@@ -170,50 +170,33 @@ export function Home() {
     setIsDuplicating(true);
 
     try {
-      // Fetch the source note's state from server
       const protocol = PARTYKIT_HOST.includes("localhost") ? "http" : "https";
-      let stateToUse: string | null = null;
 
-      try {
-        const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/state`);
-        if (res.ok) {
-          const data = await res.json();
-          stateToUse = data.state || null;
-        }
-      } catch (fetchErr) {
-        console.warn("[Duplicate] Could not fetch source state:", fetchErr);
+      // Fetch the source note's state from server
+      const stateRes = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${pendingActionNoteId}/state`);
+      if (!stateRes.ok) {
+        throw new Error("Could not fetch source note state");
+      }
+      const { state: stateToUse } = await stateRes.json();
+
+      if (!stateToUse) {
+        throw new Error("Source note has no content");
       }
 
-      // Persist to server FIRST (this is the source of truth for large documents with images)
-      if (stateToUse) {
-        try {
-          await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ state: stateToUse, title: newTitle }),
-          });
-          console.log("[Duplicate] Persisted to server");
-        } catch (initErr) {
-          console.warn("[Duplicate] Could not persist to server:", initErr);
-        }
-      }
+      // Send to server - server applies state directly to Y.Doc
+      const initRes = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/notes/${newNoteId}/init`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: stateToUse, title: newTitle }),
+      });
 
-      // Try to store in sessionStorage (may fail for large documents with images)
-      try {
-        sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
-          state: stateToUse,
-          title: newTitle
-        }));
-        console.log("[Duplicate] Stored full state in sessionStorage");
-      } catch (storageErr) {
-        // sessionStorage quota exceeded - store just title as fallback
-        console.warn("[Duplicate] sessionStorage full, using fallback:", storageErr);
-        try {
-          sessionStorage.setItem(`duplicateTitle:${newNoteId}`, JSON.stringify({ title: newTitle }));
-        } catch {
-          // Even title storage failed, server has the data so we're OK
-        }
+      if (!initRes.ok) {
+        throw new Error(`Server returned ${initRes.status}`);
       }
+      console.log("[Duplicate] Server applied state");
+
+      // Store marker for client to set owner info when note is opened
+      sessionStorage.setItem(`duplicate:${newNoteId}`, "1");
 
       // Add to recent notes immediately with the new title and copy the preview
       addRecentNote(newNoteId, newTitle, true, notePreview);

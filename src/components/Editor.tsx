@@ -215,71 +215,46 @@ export function CollaborativeEditor({
     }
   }, [userName, userColor, isConnected, registerUser]);
 
-  // Apply duplicate state from sessionStorage after connection
+  // Handle duplicate notes - set owner info after sync
+  // Note: The actual state is now applied by the server in /init endpoint
   useEffect(() => {
-    if (!isConnected || !ydocRef.current) return;
+    if (!isConnected || !ydocRef.current || !providerRef.current) return;
 
     const duplicateKey = `duplicate:${noteId}`;
-    const duplicateTitleKey = `duplicateTitle:${noteId}`;
 
-    try {
-      const duplicateData = sessionStorage.getItem(duplicateKey);
-      if (duplicateData) {
-        sessionStorage.removeItem(duplicateKey);
-        const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
+    // Check if this is a duplicate note (marker stored by duplicate handler)
+    const isDuplicate = sessionStorage.getItem(duplicateKey);
+    if (!isDuplicate) return; // Not a duplicate
 
-        if (stateBase64) {
-          const binary = atob(stateBase64);
-          const state = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            state[i] = binary.charCodeAt(i);
-          }
-          Y.applyUpdate(ydocRef.current, state);
-          console.log("[Duplicate] Applied state after connect, size:", state.length);
-        }
+    // Clean up sessionStorage marker
+    sessionStorage.removeItem(duplicateKey);
 
-        // Set title and owner
-        const meta = ydocRef.current.getMap("meta");
-        if (newTitle) {
-          meta.set("title", newTitle);
-          meta.set("titleEdited", "true");
-        }
-        meta.set("ownerId", userId);
-        meta.set("ownerName", userName);
-        meta.set("locked", false);
-        meta.delete("deleted");
+    // Wait for sync to complete, then set owner info
+    const provider = providerRef.current;
+    const setOwnerInfo = () => {
+      if (!ydocRef.current) return;
 
-        setTitle(newTitle);
-        onTitleChange?.(newTitle);
-        updateNoteOwner(noteId, userId, userName);
-        console.log("[Duplicate] Applied successfully, title:", newTitle);
-      } else {
-        // Check for title-only fallback
-        const titleData = sessionStorage.getItem(duplicateTitleKey);
-        if (titleData) {
-          sessionStorage.removeItem(duplicateTitleKey);
-          const { title: newTitle } = JSON.parse(titleData);
+      const meta = ydocRef.current.getMap("meta");
+      meta.set("ownerId", userId);
+      meta.set("ownerName", userName);
+      updateNoteOwner(noteId, userId, userName);
+      console.log("[Duplicate] Set owner info after sync");
+    };
 
-          const meta = ydocRef.current.getMap("meta");
-          if (newTitle) {
-            meta.set("title", newTitle);
-            meta.set("titleEdited", "true");
-          }
-          meta.set("ownerId", userId);
-          meta.set("ownerName", userName);
-          meta.set("locked", false);
-          meta.delete("deleted");
+    if (provider.synced) {
+      setOwnerInfo();
+    } else {
+      const onSync = () => {
+        setOwnerInfo();
+        provider.off('synced', onSync);
+      };
+      provider.on('synced', onSync);
 
-          setTitle(newTitle);
-          onTitleChange?.(newTitle);
-          updateNoteOwner(noteId, userId, userName);
-          console.log("[Duplicate] Applied title-only fallback");
-        }
-      }
-    } catch (err) {
-      console.error("[Duplicate] Failed to apply state:", err);
+      return () => {
+        provider.off('synced', onSync);
+      };
     }
-  }, [isConnected, noteId, userId, userName, onTitleChange, updateNoteOwner]);
+  }, [isConnected, noteId, userId, userName, updateNoteOwner]);
 
   useEffect(() => {
     const updateMeta = () => {
@@ -588,39 +563,22 @@ export function CollaborativeEditor({
       console.log("[Duplicate] New note ID:", newNoteId);
       console.log("[Duplicate] New title:", newTitle);
 
-      // Persist to server FIRST (this is the source of truth for large documents)
+      // Persist to server - server applies state directly to Y.Doc
       const protocol = partykitHost.includes("localhost") ? "http" : "https";
-      try {
-        await fetch(`${protocol}://${partykitHost}/parties/notes/${newNoteId}/init`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ state: stateBase64, title: newTitle }),
-        });
-        console.log("[Duplicate] Persisted to server");
-      } catch (err) {
-        console.warn("[Duplicate] Failed to persist to server:", err);
-        showToast("Failed to duplicate note", "error");
-        return;
-      }
+      const res = await fetch(`${protocol}://${partykitHost}/parties/notes/${newNoteId}/init`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: stateBase64, title: newTitle }),
+      });
 
-      // Try to store in sessionStorage (may fail for large documents with images)
-      try {
-        sessionStorage.setItem(`duplicate:${newNoteId}`, JSON.stringify({
-          state: stateBase64,
-          title: newTitle
-        }));
-        console.log("[Duplicate] Stored full state in sessionStorage");
-      } catch (storageErr) {
-        // sessionStorage quota exceeded - store just title as fallback
-        console.warn("[Duplicate] sessionStorage full, using fallback:", storageErr);
-        try {
-          sessionStorage.setItem(`duplicateTitle:${newNoteId}`, JSON.stringify({ title: newTitle }));
-        } catch {
-          // Even title storage failed, server has the data so we're OK
-        }
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
       }
+      console.log("[Duplicate] Server applied state");
 
-      console.log("[Duplicate] Calling onDuplicate callback...");
+      // Store marker for client to set owner info
+      sessionStorage.setItem(`duplicate:${newNoteId}`, "1");
+
       setDuplicateDialogOpen(false);
       onDuplicate(newNoteId, newTitle);
     } catch (err) {

@@ -41,45 +41,11 @@ export default class YjsServer implements Party.Server {
   constructor(readonly room: Party.Room) {}
 
   async onConnect(conn: Party.Connection) {
-    // Check for initial state from duplication
-    const initialState = await this.room.storage.get<string>("initialState");
-    const initialTitle = await this.room.storage.get<string>("initialTitle");
     // Check lock state from storage (source of truth)
     const isLocked = await this.room.storage.get<boolean>("locked");
 
     return onConnect(conn, this.room, {
       persist: { mode: "snapshot" },
-      // Load initial state for duplicated notes
-      load: async () => {
-        if (initialState) {
-          try {
-            const stateBytes = base64ToUint8Array(initialState);
-            const doc = new Y.Doc();
-            Y.applyUpdate(doc, stateBytes);
-
-            // Set the new title and clear lock/delete flags
-            const meta = doc.getMap("meta");
-            if (initialTitle) {
-              meta.set("title", initialTitle);
-              meta.set("titleEdited", "true");
-            }
-            meta.set("locked", false);
-            meta.delete("deleted");
-            meta.delete("ownerId");
-            meta.delete("ownerName");
-
-            // Clear the initial state so it's not applied again
-            await this.room.storage.delete("initialState");
-            await this.room.storage.delete("initialTitle");
-
-            console.log("[onConnect] Loaded initial state for duplicate note");
-            return doc;
-          } catch (err) {
-            console.error("[onConnect] Failed to load initial state:", err);
-          }
-        }
-        return null;
-      },
       callback: {
         handler: async (ydoc) => {
           const meta = ydoc.getMap("meta");
@@ -90,17 +56,6 @@ export default class YjsServer implements Party.Server {
             if (docLocked !== isLocked) {
               meta.set("locked", isLocked);
             }
-          }
-
-          // Apply initial title if this is a duplicated note (backup in case load didn't apply it)
-          if (initialTitle) {
-            const currentTitle = meta.get("title");
-            if (!currentTitle) {
-              meta.set("title", initialTitle);
-              meta.set("titleEdited", "true");
-            }
-            // Clear the initial title so it's not applied again
-            await this.room.storage.delete("initialTitle");
           }
 
           await this.maybeSaveVersion(ydoc);
@@ -323,16 +278,32 @@ export default class YjsServer implements Party.Server {
       try {
         const body = await req.json() as { state?: string | null; title?: string };
 
-        // Store the initial state for the load() function to pick up on first connect
+        // Apply state directly to Y.Doc using unstable_getYDoc
+        // This is more reliable than the load() callback
         if (body.state) {
-          // Store the raw state - the load() function in onConnect will process it
-          await this.room.storage.put("initialState", body.state);
-          console.log("[/init] Stored initial state for duplicate note");
-        }
+          const ydoc = await unstable_getYDoc(this.room, { persist: { mode: "snapshot" } });
+          const stateBytes = base64ToUint8Array(body.state);
+          Y.applyUpdate(ydoc, stateBytes);
 
-        // Store title for when client connects
-        if (body.title) {
-          await this.room.storage.put("initialTitle", body.title);
+          // Set metadata
+          const meta = ydoc.getMap("meta");
+          if (body.title) {
+            meta.set("title", body.title);
+            meta.set("titleEdited", "true");
+          }
+          meta.set("locked", false);
+          meta.delete("deleted");
+          meta.delete("ownerId");
+          meta.delete("ownerName");
+
+          console.log("[/init] Applied state directly to Y.Doc, size:", stateBytes.length);
+        } else if (body.title) {
+          // No state but have title - just set the title
+          const ydoc = await unstable_getYDoc(this.room, { persist: { mode: "snapshot" } });
+          const meta = ydoc.getMap("meta");
+          meta.set("title", body.title);
+          meta.set("titleEdited", "true");
+          meta.set("locked", false);
         }
 
         // Ensure duplicate starts unlocked
