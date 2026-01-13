@@ -870,7 +870,7 @@ export function CollaborativeEditor({
       "& li": { margin: "0.25em 0", display: "list-item" },
       "& li p": { margin: "0" },
       "& img": {
-        maxWidth: "min(100%, 500px)",
+        maxWidth: "min(100%, 400px)",
         height: "auto",
         borderRadius: "8px",
         margin: "0.5em 0",
@@ -1050,32 +1050,13 @@ export function CollaborativeEditor({
               </Portal>
             </Menu.Root>
 
-            {/* Collaborators + You */}
-            <HStack gap={0} ml={1}>
-              <CollaboratorsList
-                provider={provider}
-                currentUser={{ name: userName, color: userColor }}
-                maxDisplay={2}
-                showCurrentUser={false}
-              />
-              <Box
-                w={8}
-                h={8}
-                borderRadius="full"
-                bg={userColor}
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-                border="2px solid white"
-                boxShadow="0 0 0 2px #6366F1"
-                ml={-1}
-                zIndex={10}
-              >
-                <Text fontSize="xs" fontWeight="bold" color="white">
-                  {userName.charAt(0).toUpperCase()}
-                </Text>
-              </Box>
-            </HStack>
+            {/* Collaborators + You - all tappable to show names */}
+            <CollaboratorsList
+              provider={provider}
+              currentUser={{ name: userName, color: userColor }}
+              maxDisplay={3}
+              showCurrentUser={true}
+            />
           </Box>
 
           {/* Mobile Title Row */}

@@ -87,17 +87,17 @@ export function CollaboratorsList({ provider, currentUser, maxDisplay = 4, showC
             {visibleUsers.map((user, index) => (
               <Box
                 key={user.id}
-                w={avatarSize}
-                h={avatarSize}
+                w={user.isMe ? avatarSize + 1 : avatarSize}
+                h={user.isMe ? avatarSize + 1 : avatarSize}
                 borderRadius="full"
                 bg={user.color}
                 display="flex"
                 alignItems="center"
                 justifyContent="center"
                 border="2px solid white"
-                boxShadow={user.isMe ? "0 0 0 2px " + user.color : "sm"}
+                boxShadow={user.isMe ? "0 0 0 2px #6366F1" : "sm"}
                 position="relative"
-                zIndex={visibleUsers.length - index}
+                zIndex={user.isMe ? 10 : visibleUsers.length - index}
                 ml={index > 0 ? -2 : 0}
               >
                 <Text fontSize="xs" fontWeight="bold" color="white">
