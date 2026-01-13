@@ -422,80 +422,42 @@ export function CollaborativeEditor({
   }, [titleMap, registerUser]);
 
   const handleHistoryRestore = useCallback((data: { state: Uint8Array; title: string }) => {
-    const currentEditor = editorRef.current;
-    if (!currentEditor || !ydocRef.current) {
-      console.error("[Restore] No editor or Y.Doc available");
+    if (!ydocRef.current) {
+      console.error("[Restore] No Y.Doc available");
       return;
     }
 
     try {
-      // Create temp doc with the old state to get HTML content
+      const ydoc = ydocRef.current;
+
+      // Create temp doc with the old state
       const tempDoc = new Y.Doc();
       Y.applyUpdate(tempDoc, data.state);
 
-      // Create temp TipTap editor to extract HTML
-      // TipTap Collaboration uses "prosemirror" as the fragment name
+      // Get fragments - TipTap uses "prosemirror"
+      const currentFragment = ydoc.getXmlFragment("prosemirror");
       const tempFragment = tempDoc.getXmlFragment("prosemirror");
 
-      // Get HTML from temp fragment using a temporary TipTap editor
-      // We need to manually serialize the Y.XmlFragment to HTML
-      const getHtmlFromFragment = (fragment: Y.XmlFragment): string => {
-        let html = '';
-        for (let i = 0; i < fragment.length; i++) {
-          const child = fragment.get(i);
+      // Clear current content and copy from temp
+      ydoc.transact(() => {
+        // Delete all current content
+        currentFragment.delete(0, currentFragment.length);
+
+        // Clone each element from temp to current
+        for (let i = 0; i < tempFragment.length; i++) {
+          const child = tempFragment.get(i);
           if (child instanceof Y.XmlElement) {
-            html += serializeXmlElement(child);
+            const clone = cloneXmlElement(child);
+            currentFragment.push([clone]);
           } else if (child instanceof Y.XmlText) {
-            html += child.toString();
+            const textClone = new Y.XmlText();
+            textClone.applyDelta(child.toDelta());
+            currentFragment.push([textClone]);
           }
         }
-        return html;
-      };
+      });
 
-      const serializeXmlElement = (element: Y.XmlElement): string => {
-        const nodeName = element.nodeName.toLowerCase();
-        let attrs = '';
-        const attributes = element.getAttributes();
-        for (const [key, value] of Object.entries(attributes)) {
-          attrs += ` ${key}="${String(value).replace(/"/g, '&quot;')}"`;
-        }
-
-        let inner = '';
-        for (let i = 0; i < element.length; i++) {
-          const child = element.get(i);
-          if (child instanceof Y.XmlElement) {
-            inner += serializeXmlElement(child);
-          } else if (child instanceof Y.XmlText) {
-            // For text, get delta to preserve formatting
-            const delta = child.toDelta();
-            for (const op of delta) {
-              let text = op.insert || '';
-              if (op.attributes) {
-                if (op.attributes.bold) text = `<strong>${text}</strong>`;
-                if (op.attributes.italic) text = `<em>${text}</em>`;
-                if (op.attributes.strike) text = `<s>${text}</s>`;
-                if (op.attributes.color) text = `<span style="color: ${op.attributes.color}">${text}</span>`;
-                if (op.attributes.highlight) text = `<mark data-color="${op.attributes.highlight}" style="background-color: ${op.attributes.highlight}">${text}</mark>`;
-                if (op.attributes.link) text = `<a href="${op.attributes.link.href}">${text}</a>`;
-              }
-              inner += text;
-            }
-          }
-        }
-
-        // Self-closing tags
-        if (nodeName === 'img') {
-          return `<${nodeName}${attrs}>`;
-        }
-
-        return `<${nodeName}${attrs}>${inner}</${nodeName}>`;
-      };
-
-      const html = getHtmlFromFragment(tempFragment);
       tempDoc.destroy();
-
-      // Use TipTap to set content - this properly handles the Y.js sync
-      currentEditor.commands.setContent(html);
 
       // Update title in Y.Doc meta
       if (data.title) {
@@ -516,6 +478,33 @@ export function CollaborativeEditor({
     setViewMode("editing");
     setHistoryOpen(false);
   }, [titleMap, onTitleChange, showToast]);
+
+  // Helper function to deep clone Y.XmlElement
+  const cloneXmlElement = (element: Y.XmlElement): Y.XmlElement => {
+    const clone = new Y.XmlElement(element.nodeName);
+
+    // Copy attributes
+    const attrs = element.getAttributes();
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value !== undefined) {
+        clone.setAttribute(key, value);
+      }
+    }
+
+    // Copy children
+    for (let i = 0; i < element.length; i++) {
+      const child = element.get(i);
+      if (child instanceof Y.XmlElement) {
+        clone.push([cloneXmlElement(child)]);
+      } else if (child instanceof Y.XmlText) {
+        const textClone = new Y.XmlText();
+        textClone.applyDelta(child.toDelta());
+        clone.push([textClone]);
+      }
+    }
+
+    return clone;
+  };
 
   const handleLockClick = useCallback(() => {
     setLockDialogOpen(true);
