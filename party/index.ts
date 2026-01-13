@@ -285,9 +285,11 @@ export default class YjsServer implements Party.Server {
           const stateBytes = base64ToUint8Array(body.state);
           Y.applyUpdate(ydoc, stateBytes);
 
-          // Set metadata
+          // Set metadata - delete old values first to ensure our values win in Y.js conflict resolution
           const meta = ydoc.getMap("meta");
           if (body.title) {
+            meta.delete("title");
+            meta.delete("titleEdited");
             meta.set("title", body.title);
             meta.set("titleEdited", "true");
           }
