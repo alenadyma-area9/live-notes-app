@@ -421,13 +421,21 @@ export function CollaborativeEditor({
     registerUser();
   }, [titleMap, registerUser]);
 
-  const handleHistoryRestore = useCallback((data: { state: Uint8Array; title: string }) => {
+  const handleHistoryRestore = useCallback(async (data: { state: Uint8Array; title: string }) => {
     if (!ydocRef.current) {
       console.error("[Restore] No Y.Doc available");
       return;
     }
 
     try {
+      const protocol = partykitHost.includes("localhost") ? "http" : "https";
+
+      // 1. Save current version before restoring
+      await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
+        method: "POST",
+      });
+      console.log("[Restore] Saved current version before restore");
+
       const ydoc = ydocRef.current;
 
       // Create temp doc with the old state
@@ -466,6 +474,15 @@ export function CollaborativeEditor({
         onTitleChange?.(data.title);
       }
 
+      // 2. Save restored version as new version
+      // Small delay to ensure Y.js has propagated changes
+      setTimeout(async () => {
+        await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
+          method: "POST",
+        });
+        console.log("[Restore] Saved restored version");
+      }, 500);
+
       showToast("Version restored successfully", "success");
       console.log("[Restore] Successfully restored version");
     } catch (err) {
@@ -477,7 +494,7 @@ export function CollaborativeEditor({
     setCompareState(null);
     setViewMode("editing");
     setHistoryOpen(false);
-  }, [titleMap, onTitleChange, showToast]);
+  }, [titleMap, onTitleChange, showToast, partykitHost, noteId]);
 
   // Helper function to deep clone Y.XmlElement
   const cloneXmlElement = (element: Y.XmlElement): Y.XmlElement => {

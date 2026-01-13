@@ -393,8 +393,8 @@ export default class YjsServer implements Party.Server {
     const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
     const MIN_TIME_BETWEEN = 30000;    // Minimum 30 seconds between versions
 
-    // Get text content
-    const xmlFragment = ydoc.getXmlFragment("default");
+    // Get text content - TipTap uses "prosemirror" fragment
+    const xmlFragment = ydoc.getXmlFragment("prosemirror");
     const contentText = xmlFragment.toString();
     const currentLength = contentText.length;
 
