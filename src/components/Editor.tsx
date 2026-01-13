@@ -104,6 +104,7 @@ export function CollaborativeEditor({
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
 
   const showToast = useCallback((message: string, type: "success" | "info" | "error" = "success") => {
     setToast({ message, type });
@@ -671,6 +672,8 @@ export function CollaborativeEditor({
           registerUser();
         }
       },
+      onFocus: () => setIsEditorFocused(true),
+      onBlur: () => setIsEditorFocused(false),
     },
     [provider, userName, userColor, registerUser]
   );
@@ -1107,153 +1110,55 @@ export function CollaborativeEditor({
             {/* Spacer */}
             <Box flex={1} />
 
-            {/* Styling Menu (Aa icon) */}
+            {/* Link button */}
             {viewMode === "editing" && editor && (
-              <Menu.Root positioning={{ placement: "bottom-end" }}>
-                <Menu.Trigger asChild>
-                  <IconButton
-                    aria-label="Text formatting"
-                    variant="ghost"
-                    size="sm"
-                    color="gray.600"
-                    onMouseDown={(e) => {
-                      // Prevent blur to keep text selection
-                      e.preventDefault();
-                    }}
-                  >
-                    <Text fontWeight="bold" fontSize="md">Aa</Text>
-                  </IconButton>
-                </Menu.Trigger>
-                <Portal>
-                  <Menu.Positioner>
-                    <Menu.Content minW="180px">
-                      <Menu.Item value="bold" onClick={() => editor.chain().focus().toggleBold().run()}>
-                        <Text fontWeight="bold">B</Text>
-                        <Text>Bold</Text>
-                        {editor.isActive('bold') && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Item value="italic" onClick={() => editor.chain().focus().toggleItalic().run()}>
-                        <Text fontStyle="italic">I</Text>
-                        <Text>Italic</Text>
-                        {editor.isActive('italic') && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Item value="strike" onClick={() => editor.chain().focus().toggleStrike().run()}>
-                        <Text textDecoration="line-through">S</Text>
-                        <Text>Strikethrough</Text>
-                        {editor.isActive('strike') && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Separator />
-                      <Menu.Item value="h1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
-                        <Text fontWeight="bold">H1</Text>
-                        <Text>Heading 1</Text>
-                        {editor.isActive('heading', { level: 1 }) && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Item value="h2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
-                        <Text fontWeight="bold">H2</Text>
-                        <Text>Heading 2</Text>
-                        {editor.isActive('heading', { level: 2 }) && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Separator />
-                      <Menu.Item value="bullet" onClick={() => editor.chain().focus().toggleBulletList().run()}>
-                        <Text>•</Text>
-                        <Text>Bullet list</Text>
-                        {editor.isActive('bulletList') && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Item value="ordered" onClick={() => editor.chain().focus().toggleOrderedList().run()}>
-                        <Text>1.</Text>
-                        <Text>Numbered list</Text>
-                        {editor.isActive('orderedList') && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Item value="task" onClick={() => editor.chain().focus().toggleTaskList().run()}>
-                        <Text>☑</Text>
-                        <Text>Task list</Text>
-                        {editor.isActive('taskList') && <LuCheck />}
-                      </Menu.Item>
-                      <Menu.Separator />
-                      <Menu.Item value="red" onClick={() => editor.chain().focus().setColor('#ef4444').run()}>
-                        <Box w={4} h={4} borderRadius="full" bg="#ef4444" />
-                        <Text>Red text</Text>
-                      </Menu.Item>
-                      <Menu.Item value="blue" onClick={() => editor.chain().focus().setColor('#3b82f6').run()}>
-                        <Box w={4} h={4} borderRadius="full" bg="#3b82f6" />
-                        <Text>Blue text</Text>
-                      </Menu.Item>
-                      <Menu.Item value="highlight-yellow" onClick={() => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()}>
-                        <Box w={4} h={4} borderRadius="sm" bg="#fef08a" border="1px solid" borderColor="gray.300" />
-                        <Text>Yellow highlight</Text>
-                      </Menu.Item>
-                      <Menu.Item value="highlight-green" onClick={() => editor.chain().focus().toggleHighlight({ color: '#bbf7d0' }).run()}>
-                        <Box w={4} h={4} borderRadius="sm" bg="#bbf7d0" border="1px solid" borderColor="gray.300" />
-                        <Text>Green highlight</Text>
-                      </Menu.Item>
-                      <Menu.Separator />
-                      <Menu.Item value="clear" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
-                        <LuCircleX />
-                        <Text>Clear formatting</Text>
-                      </Menu.Item>
-                    </Menu.Content>
-                  </Menu.Positioner>
-                </Portal>
-              </Menu.Root>
+              <IconButton
+                aria-label="Add link"
+                variant="ghost"
+                size="sm"
+                color="gray.600"
+                onClick={() => {
+                  const url = prompt('Enter URL:');
+                  if (url) {
+                    const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
+                    editor.chain().focus().setLink({ href: normalizedUrl }).run();
+                  }
+                }}
+              >
+                <LuExternalLink size={18} />
+              </IconButton>
             )}
 
-            {/* Insert Menu (+ icon) */}
+            {/* Image button */}
             {viewMode === "editing" && editor && (
-              <Menu.Root positioning={{ placement: "bottom-end" }}>
-                <Menu.Trigger asChild>
-                  <IconButton
-                    aria-label="Insert"
-                    variant="ghost"
-                    size="sm"
-                    color="gray.600"
-                    onMouseDown={(e) => {
-                      // Prevent blur to keep text selection
-                      e.preventDefault();
-                    }}
-                  >
-                    <Text fontWeight="bold" fontSize="lg">+</Text>
-                  </IconButton>
-                </Menu.Trigger>
-                <Portal>
-                  <Menu.Positioner>
-                    <Menu.Content minW="160px">
-                      <Menu.Item value="link" onClick={() => {
-                        const url = prompt('Enter URL:');
-                        if (url) {
-                          const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
-                          editor.chain().focus().setLink({ href: normalizedUrl }).run();
-                        }
-                      }}>
-                        <LuExternalLink />
-                        <Text>Add link</Text>
-                      </Menu.Item>
-                      <Menu.Item value="image" onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = (e) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file) {
-                            if (file.size > 5 * 1024 * 1024) {
-                              showToast("Image too large (max 5MB)", "error");
-                              return;
-                            }
-                            const reader = new FileReader();
-                            reader.onload = () => {
-                              editor.chain().focus().setImage({ src: reader.result as string }).run();
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        };
-                        input.click();
-                      }}>
-                        <LuImage />
-                        <Text>Add image</Text>
-                      </Menu.Item>
-                    </Menu.Content>
-                  </Menu.Positioner>
-                </Portal>
-              </Menu.Root>
+              <IconButton
+                aria-label="Add image"
+                variant="ghost"
+                size="sm"
+                color="gray.600"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'image/*';
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (file) {
+                      if (file.size > 5 * 1024 * 1024) {
+                        showToast("Image too large (max 5MB)", "error");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        editor.chain().focus().setImage({ src: reader.result as string }).run();
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  };
+                  input.click();
+                }}
+              >
+                <LuImage size={18} />
+              </IconButton>
             )}
 
             {/* More Menu (Share, Save, History, Duplicate, Lock, Delete) */}
@@ -1729,6 +1634,7 @@ export function CollaborativeEditor({
             <Box
               p={{ base: 4, md: 4 }}
               pt={{ base: 3, md: 3 }}
+              pb={{ base: isEditorFocused ? "60px" : 4, md: 4 }}
               flex={1}
               display="flex"
               flexDirection="column"
@@ -1828,6 +1734,130 @@ export function CollaborativeEditor({
             />
           )}
         </Box>
+
+        {/* Mobile Bottom Toolbar - appears above keyboard */}
+        {isMobile && viewMode === "editing" && editor && isEditorFocused && (
+          <Box
+            position="fixed"
+            bottom={0}
+            left={0}
+            right={0}
+            bg="gray.50"
+            borderTop="1px solid"
+            borderColor="gray.200"
+            px={1}
+            py={1.5}
+            zIndex={1000}
+            css={{
+              paddingBottom: "env(safe-area-inset-bottom, 8px)",
+            }}
+          >
+            <HStack gap={0} justify="space-around">
+              {/* Bold */}
+              <IconButton
+                aria-label="Bold"
+                variant="ghost"
+                size="sm"
+                color={editor.isActive('bold') ? "#4F46E5" : "gray.600"}
+                bg={editor.isActive('bold') ? "#EEF2FF" : undefined}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
+                minW="36px"
+              >
+                <Text fontWeight="black" fontSize="md">B</Text>
+              </IconButton>
+
+              {/* Italic */}
+              <IconButton
+                aria-label="Italic"
+                variant="ghost"
+                size="sm"
+                color={editor.isActive('italic') ? "#4F46E5" : "gray.600"}
+                bg={editor.isActive('italic') ? "#EEF2FF" : undefined}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}
+                minW="36px"
+              >
+                <Text fontStyle="italic" fontSize="md">I</Text>
+              </IconButton>
+
+              {/* H1 */}
+              <IconButton
+                aria-label="Heading 1"
+                variant="ghost"
+                size="sm"
+                color={editor.isActive('heading', { level: 1 }) ? "#4F46E5" : "gray.600"}
+                bg={editor.isActive('heading', { level: 1 }) ? "#EEF2FF" : undefined}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: 1 }).run(); }}
+                minW="36px"
+              >
+                <Text fontWeight="bold" fontSize="sm">H1</Text>
+              </IconButton>
+
+              <Box w="1px" h={5} bg="gray.300" />
+
+              {/* Bullet List */}
+              <IconButton
+                aria-label="Bullet list"
+                variant="ghost"
+                size="sm"
+                color={editor.isActive('bulletList') ? "#4F46E5" : "gray.600"}
+                bg={editor.isActive('bulletList') ? "#EEF2FF" : undefined}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}
+                minW="36px"
+              >
+                <Text fontSize="md">•≡</Text>
+              </IconButton>
+
+              {/* Task List */}
+              <IconButton
+                aria-label="Task list"
+                variant="ghost"
+                size="sm"
+                color={editor.isActive('taskList') ? "#4F46E5" : "gray.600"}
+                bg={editor.isActive('taskList') ? "#EEF2FF" : undefined}
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleTaskList().run(); }}
+                minW="36px"
+              >
+                <Text fontSize="md">☑</Text>
+              </IconButton>
+
+              <Box w="1px" h={5} bg="gray.300" />
+
+              {/* Red text */}
+              <IconButton
+                aria-label="Red text"
+                variant="ghost"
+                size="sm"
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setColor('#ef4444').run(); }}
+                minW="36px"
+              >
+                <Box w={4} h={4} borderRadius="full" bg="#ef4444" />
+              </IconButton>
+
+              {/* Yellow highlight */}
+              <IconButton
+                aria-label="Yellow highlight"
+                variant="ghost"
+                size="sm"
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run(); }}
+                minW="36px"
+              >
+                <Box w={4} h={4} borderRadius="sm" bg="#fef08a" border="1px solid" borderColor="gray.400" />
+              </IconButton>
+
+              {/* Clear formatting */}
+              <IconButton
+                aria-label="Clear formatting"
+                variant="ghost"
+                size="sm"
+                color="gray.600"
+                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().unsetAllMarks().clearNodes().run(); }}
+                minW="36px"
+              >
+                <LuCircleX size={18} />
+              </IconButton>
+            </HStack>
+          </Box>
+        )}
 
         </Box>
 
