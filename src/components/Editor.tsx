@@ -209,6 +209,12 @@ export function CollaborativeEditor({
             onTitleChange?.(syncedTitle);
           }
         }
+        // Save preview after sync (content is now loaded)
+        if (editorRef.current) {
+          const text = editorRef.current.getText();
+          const preview = text.slice(0, 200).trim();
+          updateNotePreview(noteId, preview);
+        }
       }
     };
 
@@ -229,7 +235,7 @@ export function CollaborativeEditor({
       provider.off("status", onStatus);
       provider.off("synced", onSync);
     };
-  }, [provider, registerUser]);
+  }, [provider, registerUser, noteId, updateNotePreview, onTitleChange]);
 
   useEffect(() => {
     if (isConnected) {
