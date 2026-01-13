@@ -36,11 +36,16 @@ interface CompareState {
   versionId: string;
 }
 
+interface RestoreData {
+  state: Uint8Array;
+  title: string;
+}
+
 interface HistoryPanelProps {
   noteId: string;
   partykitHost: string;
   isOpen: boolean;
-  onRestore: () => void;
+  onRestore: (data: RestoreData) => void;
   onClose: () => void;
   currentDoc?: Y.Doc;
   viewMode: ViewMode;
@@ -123,49 +128,26 @@ export function HistoryPanel({
       if (res.ok) {
         const data = await res.json();
 
-        // Apply the restored state to the current document
-        if (data.state && currentDoc) {
+        if (data.state) {
           const state = base64ToUint8Array(data.state);
 
-          // Create temp doc with the old state
+          // Extract title from the version state
           const tempDoc = new Y.Doc();
           Y.applyUpdate(tempDoc, state);
-
-          // Get old content and title
-          const oldContent = tempDoc.getXmlFragment("default");
           const oldMeta = tempDoc.getMap("meta");
-          const oldTitle = oldMeta.get("title") as string;
-
-          // Clear current content
-          const currentContent = currentDoc.getXmlFragment("default");
-          currentDoc.transact(() => {
-            // Delete all current content
-            while (currentContent.length > 0) {
-              currentContent.delete(0, 1);
-            }
-
-            // Clone and insert old content elements
-            for (let i = 0; i < oldContent.length; i++) {
-              const element = oldContent.get(i);
-              if (element) {
-                currentContent.insert(i, [element.clone()]);
-              }
-            }
-
-            // Update title
-            const currentMeta = currentDoc.getMap("meta");
-            if (oldTitle) {
-              currentMeta.set("title", oldTitle);
-            }
-          });
-
+          const oldTitle = (oldMeta.get("title") as string) || "";
           tempDoc.destroy();
-        }
 
-        onPreview(null);
-        onCompare(null);
-        onRestore();
-        fetchVersions();
+          // Pass the state to Editor.tsx to handle the actual restore
+          // This allows using TipTap's setContent which works better than manual Y.js manipulation
+          onPreview(null);
+          onCompare(null);
+          onRestore({ state, title: oldTitle });
+          fetchVersions();
+        } else {
+          console.error("No state in restore response");
+          setErrorDialogOpen(true);
+        }
       } else {
         console.error("Failed to restore version:", res.status);
         setErrorDialogOpen(true);
@@ -176,7 +158,7 @@ export function HistoryPanel({
     }
     setRestoring(null);
     setPendingRestoreId(null);
-  }, [pendingRestoreId, partykitHost, noteId, currentDoc, onPreview, onCompare, onRestore]);
+  }, [pendingRestoreId, partykitHost, noteId, onPreview, onCompare, onRestore]);
 
   // Get the pending restore version info for dialog
   const pendingRestoreVersion = pendingRestoreId ? versions.find(v => v.id === pendingRestoreId) : null;

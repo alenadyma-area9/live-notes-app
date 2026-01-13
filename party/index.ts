@@ -41,13 +41,45 @@ export default class YjsServer implements Party.Server {
   constructor(readonly room: Party.Room) {}
 
   async onConnect(conn: Party.Connection) {
-    // Check for initial title from duplication
+    // Check for initial state from duplication
+    const initialState = await this.room.storage.get<string>("initialState");
     const initialTitle = await this.room.storage.get<string>("initialTitle");
     // Check lock state from storage (source of truth)
     const isLocked = await this.room.storage.get<boolean>("locked");
 
     return onConnect(conn, this.room, {
       persist: { mode: "snapshot" },
+      // Load initial state for duplicated notes
+      load: async () => {
+        if (initialState) {
+          try {
+            const stateBytes = base64ToUint8Array(initialState);
+            const doc = new Y.Doc();
+            Y.applyUpdate(doc, stateBytes);
+
+            // Set the new title and clear lock/delete flags
+            const meta = doc.getMap("meta");
+            if (initialTitle) {
+              meta.set("title", initialTitle);
+              meta.set("titleEdited", "true");
+            }
+            meta.set("locked", false);
+            meta.delete("deleted");
+            meta.delete("ownerId");
+            meta.delete("ownerName");
+
+            // Clear the initial state so it's not applied again
+            await this.room.storage.delete("initialState");
+            await this.room.storage.delete("initialTitle");
+
+            console.log("[onConnect] Loaded initial state for duplicate note");
+            return doc;
+          } catch (err) {
+            console.error("[onConnect] Failed to load initial state:", err);
+          }
+        }
+        return null;
+      },
       callback: {
         handler: async (ydoc) => {
           const meta = ydoc.getMap("meta");
@@ -60,9 +92,10 @@ export default class YjsServer implements Party.Server {
             }
           }
 
-          // Apply initial title if this is a duplicated note
+          // Apply initial title if this is a duplicated note (backup in case load didn't apply it)
           if (initialTitle) {
-            if (!meta.get("title")) {
+            const currentTitle = meta.get("title");
+            if (!currentTitle) {
               meta.set("title", initialTitle);
               meta.set("titleEdited", "true");
             }
@@ -311,20 +344,20 @@ export default class YjsServer implements Party.Server {
       try {
         const body = await req.json() as { state?: string | null; title?: string };
 
-        // Store the initial state if provided - it will be applied when client connects
-        // y-partykit uses "ydoc:default" key for the snapshot
+        // Store the initial state for the load() function to pick up on first connect
         if (body.state) {
-          await this.room.storage.put("ydoc:default", body.state);
+          // Store the raw state - the load() function in onConnect will process it
+          await this.room.storage.put("initialState", body.state);
+          console.log("[/init] Stored initial state for duplicate note");
         }
 
-        // Also store title for when client connects
+        // Store title for when client connects
         if (body.title) {
           await this.room.storage.put("initialTitle", body.title);
         }
 
-        // Ensure duplicate starts unlocked and not deleted
+        // Ensure duplicate starts unlocked
         await this.room.storage.put("locked", false);
-        await this.room.storage.delete("deleted");
 
         // No versions for duplicated note
         await this.room.storage.put("versions", []);

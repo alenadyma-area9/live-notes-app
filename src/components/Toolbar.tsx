@@ -33,14 +33,23 @@ function Separator() {
   );
 }
 
-// Tooltip wrapper for buttons
+// Tooltip wrapper for buttons - only show on desktop (not mobile)
 function TooltipButton({
   label,
-  children
+  children,
+  showOnMobile = false
 }: {
   label: string;
   children: React.ReactNode;
+  showOnMobile?: boolean;
 }) {
+  // Check if touch device - skip tooltips on mobile to avoid overlap with native menus
+  const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
+  if (isTouchDevice && !showOnMobile) {
+    return <>{children}</>;
+  }
+
   return (
     <Tooltip.Root openDelay={100} closeDelay={50} positioning={{ placement: "top" }}>
       <Tooltip.Trigger asChild>

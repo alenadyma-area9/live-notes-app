@@ -1,4 +1,5 @@
 import { Box, HStack, Text, Input, Popover, Portal, VStack, Button } from "@chakra-ui/react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAppStore } from "../store";
 import { LuPenLine } from "react-icons/lu";
 import { useState } from "react";
@@ -11,6 +12,8 @@ export function Header({ showNameInput = false }: HeaderProps) {
   const { userName, userColor, setUserName } = useAppStore();
   const [nameInput, setNameInput] = useState(userName);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSaveName = () => {
     if (nameInput.trim()) {
@@ -33,8 +36,20 @@ export function Header({ showNameInput = false }: HeaderProps) {
       top={0}
       zIndex={100}
     >
-      {/* Left: Logo */}
-      <HStack gap={3}>
+      {/* Left: Logo - clickable to navigate home or refresh if already home */}
+      <HStack
+        gap={3}
+        cursor="pointer"
+        onClick={() => {
+          if (location.pathname === '/') {
+            window.location.reload();
+          } else {
+            navigate('/');
+          }
+        }}
+        _hover={{ opacity: 0.8 }}
+        transition="opacity 0.2s"
+      >
         <Box
           bg="#6366F1"
           color="white"

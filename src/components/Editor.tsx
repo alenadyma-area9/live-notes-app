@@ -113,6 +113,7 @@ export function CollaborativeEditor({
   const providerRef = useRef<YPartyKitProvider | null>(null);
   const titleMapRef = useRef<Y.Map<unknown> | null>(null);
   const connectionIdRef = useRef<string>("");
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
 
   // Generate new connection ID on each mount
   if (!connectionIdRef.current) {
@@ -438,15 +439,100 @@ export function CollaborativeEditor({
     registerUser();
   }, [titleMap, registerUser]);
 
-  const handleHistoryRestore = useCallback(() => {
+  const handleHistoryRestore = useCallback((data: { state: Uint8Array; title: string }) => {
+    const currentEditor = editorRef.current;
+    if (!currentEditor || !ydocRef.current) {
+      console.error("[Restore] No editor or Y.Doc available");
+      return;
+    }
+
+    try {
+      // Create temp doc with the old state to get HTML content
+      const tempDoc = new Y.Doc();
+      Y.applyUpdate(tempDoc, data.state);
+
+      // Create temp TipTap editor to extract HTML
+      const tempFragment = tempDoc.getXmlFragment("default");
+
+      // Get HTML from temp fragment using a temporary TipTap editor
+      // We need to manually serialize the Y.XmlFragment to HTML
+      const getHtmlFromFragment = (fragment: Y.XmlFragment): string => {
+        let html = '';
+        for (let i = 0; i < fragment.length; i++) {
+          const child = fragment.get(i);
+          if (child instanceof Y.XmlElement) {
+            html += serializeXmlElement(child);
+          } else if (child instanceof Y.XmlText) {
+            html += child.toString();
+          }
+        }
+        return html;
+      };
+
+      const serializeXmlElement = (element: Y.XmlElement): string => {
+        const nodeName = element.nodeName.toLowerCase();
+        let attrs = '';
+        const attributes = element.getAttributes();
+        for (const [key, value] of Object.entries(attributes)) {
+          attrs += ` ${key}="${String(value).replace(/"/g, '&quot;')}"`;
+        }
+
+        let inner = '';
+        for (let i = 0; i < element.length; i++) {
+          const child = element.get(i);
+          if (child instanceof Y.XmlElement) {
+            inner += serializeXmlElement(child);
+          } else if (child instanceof Y.XmlText) {
+            // For text, get delta to preserve formatting
+            const delta = child.toDelta();
+            for (const op of delta) {
+              let text = op.insert || '';
+              if (op.attributes) {
+                if (op.attributes.bold) text = `<strong>${text}</strong>`;
+                if (op.attributes.italic) text = `<em>${text}</em>`;
+                if (op.attributes.strike) text = `<s>${text}</s>`;
+                if (op.attributes.color) text = `<span style="color: ${op.attributes.color}">${text}</span>`;
+                if (op.attributes.highlight) text = `<mark data-color="${op.attributes.highlight}" style="background-color: ${op.attributes.highlight}">${text}</mark>`;
+                if (op.attributes.link) text = `<a href="${op.attributes.link.href}">${text}</a>`;
+              }
+              inner += text;
+            }
+          }
+        }
+
+        // Self-closing tags
+        if (nodeName === 'img') {
+          return `<${nodeName}${attrs}>`;
+        }
+
+        return `<${nodeName}${attrs}>${inner}</${nodeName}>`;
+      };
+
+      const html = getHtmlFromFragment(tempFragment);
+      tempDoc.destroy();
+
+      // Use TipTap to set content - this properly handles the Y.js sync
+      currentEditor.commands.setContent(html);
+
+      // Update title in Y.Doc meta
+      if (data.title) {
+        titleMap.set("title", data.title);
+        setTitle(data.title);
+        onTitleChange?.(data.title);
+      }
+
+      showToast("Version restored successfully", "success");
+      console.log("[Restore] Successfully restored version");
+    } catch (err) {
+      console.error("[Restore] Failed:", err);
+      showToast("Failed to restore version", "error");
+    }
+
     setPreviewState(null);
     setCompareState(null);
     setViewMode("editing");
-    if (providerRef.current) {
-      providerRef.current.disconnect();
-      providerRef.current.connect();
-    }
-  }, []);
+    setHistoryOpen(false);
+  }, [titleMap, onTitleChange, showToast]);
 
   const handleLockClick = useCallback(() => {
     setLockDialogOpen(true);
@@ -624,7 +710,10 @@ export function CollaborativeEditor({
     [provider, userName, userColor, registerUser]
   );
 
-
+  // Keep editorRef updated for callbacks that need editor access
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   // Keyboard shortcut for clear formatting
   useEffect(() => {
