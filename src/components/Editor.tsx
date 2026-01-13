@@ -1632,6 +1632,73 @@ export function CollaborativeEditor({
               }}
               cursor="text"
             >
+              {/* Formatting BubbleMenu - shows on text selection (great for mobile) */}
+              {editor && (
+                <BubbleMenu
+                  editor={editor}
+                  shouldShow={({ editor, state }) => {
+                    // Show when text is selected (not empty selection) and not on a link
+                    const { from, to } = state.selection;
+                    const hasSelection = from !== to;
+                    const isLink = editor.isActive('link');
+                    return hasSelection && !isLink;
+                  }}
+                  tippyOptions={{ placement: 'top', maxWidth: 'none' }}
+                >
+                  <HStack
+                    bg="white"
+                    border="1px solid"
+                    borderColor="gray.200"
+                    borderRadius="lg"
+                    shadow="lg"
+                    p={1}
+                    gap={0.5}
+                  >
+                    <IconButton
+                      aria-label="Bold"
+                      size="xs"
+                      variant="ghost"
+                      bg={editor.isActive('bold') ? "#EEF2FF" : undefined}
+                      color={editor.isActive('bold') ? "#4F46E5" : "gray.600"}
+                      onClick={() => editor.chain().focus().toggleBold().run()}
+                    >
+                      <Text fontWeight="black" fontSize="xs">B</Text>
+                    </IconButton>
+                    <IconButton
+                      aria-label="Italic"
+                      size="xs"
+                      variant="ghost"
+                      bg={editor.isActive('italic') ? "#EEF2FF" : undefined}
+                      color={editor.isActive('italic') ? "#4F46E5" : "gray.600"}
+                      onClick={() => editor.chain().focus().toggleItalic().run()}
+                    >
+                      <Text fontStyle="italic" fontSize="xs">I</Text>
+                    </IconButton>
+                    <IconButton
+                      aria-label="Strikethrough"
+                      size="xs"
+                      variant="ghost"
+                      bg={editor.isActive('strike') ? "#EEF2FF" : undefined}
+                      color={editor.isActive('strike') ? "#4F46E5" : "gray.600"}
+                      onClick={() => editor.chain().focus().toggleStrike().run()}
+                    >
+                      <Text textDecoration="line-through" fontSize="xs">S</Text>
+                    </IconButton>
+                    <Box w="1px" h={4} bg="gray.200" mx={0.5} />
+                    <IconButton
+                      aria-label="Heading"
+                      size="xs"
+                      variant="ghost"
+                      bg={editor.isActive('heading') ? "#EEF2FF" : undefined}
+                      color={editor.isActive('heading') ? "#4F46E5" : "gray.600"}
+                      onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                    >
+                      <Text fontWeight="bold" fontSize="xs">H</Text>
+                    </IconButton>
+                  </HStack>
+                </BubbleMenu>
+              )}
+              {/* Link BubbleMenu - shows when cursor is on a link */}
               {editor && (
                 <BubbleMenu
                   editor={editor}
