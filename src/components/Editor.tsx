@@ -123,6 +123,58 @@ export function CollaborativeEditor({
   // Initialize once
   if (!ydocRef.current) {
     ydocRef.current = new Y.Doc();
+
+    // Apply duplicate state BEFORE connecting to server
+    // This ensures the client has content before sync, so it syncs TO the server
+    const duplicateKey = `duplicate:${noteId}`;
+    const duplicateTitleKey = `duplicateTitle:${noteId}`;
+    try {
+      const duplicateData = sessionStorage.getItem(duplicateKey);
+      if (duplicateData) {
+        sessionStorage.removeItem(duplicateKey);
+        const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
+
+        if (stateBase64) {
+          const binary = atob(stateBase64);
+          const state = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            state[i] = binary.charCodeAt(i);
+          }
+          Y.applyUpdate(ydocRef.current, state);
+          console.log("[Duplicate] Applied state BEFORE connect, size:", state.length);
+        }
+
+        // Set title and owner in meta
+        const meta = ydocRef.current.getMap("meta");
+        if (newTitle) {
+          meta.set("title", newTitle);
+          meta.set("titleEdited", "true");
+        }
+        meta.set("ownerId", userId);
+        meta.set("ownerName", userName);
+        meta.set("locked", false);
+        meta.delete("deleted");
+      } else {
+        // Check for title-only fallback (large docs that exceeded sessionStorage)
+        const titleData = sessionStorage.getItem(duplicateTitleKey);
+        if (titleData) {
+          sessionStorage.removeItem(duplicateTitleKey);
+          const { title: newTitle } = JSON.parse(titleData);
+          const meta = ydocRef.current.getMap("meta");
+          if (newTitle) {
+            meta.set("title", newTitle);
+            meta.set("titleEdited", "true");
+          }
+          meta.set("ownerId", userId);
+          meta.set("ownerName", userName);
+          meta.set("locked", false);
+          meta.delete("deleted");
+          console.log("[Duplicate] Applied title-only fallback, server should have content");
+        }
+      }
+    } catch (err) {
+      console.error("[Duplicate] Failed to apply pre-connect state:", err);
+    }
   }
   if (!providerRef.current) {
     providerRef.current = new YPartyKitProvider(
@@ -215,93 +267,20 @@ export function CollaborativeEditor({
     }
   }, [userName, userColor, isConnected, registerUser]);
 
-  // Check for duplicate state in sessionStorage and apply it
+  // Update store with owner info after duplicate (state was applied before connect)
+  // The titleMap observer handles React state updates
   useEffect(() => {
     if (!isConnected || !ydocRef.current) return;
 
-    const duplicateKey = `duplicate:${noteId}`;
-    let duplicateData: string | null = null;
+    // Check if this was a duplicate and update the store
+    const meta = ydocRef.current.getMap("meta");
+    const metaOwnerId = meta.get("ownerId") as string | undefined;
+    const metaOwnerName = meta.get("ownerName") as string | undefined;
 
-    try {
-      duplicateData = sessionStorage.getItem(duplicateKey);
-      if (duplicateData) {
-        sessionStorage.removeItem(duplicateKey);
-      }
-    } catch (err) {
-      console.warn("[Duplicate] sessionStorage access failed:", err);
+    if (metaOwnerId && metaOwnerName) {
+      updateNoteOwner(noteId, metaOwnerId, metaOwnerName);
     }
-
-    if (duplicateData) {
-      try {
-        const { state: stateBase64, title: newTitle } = JSON.parse(duplicateData);
-
-        // Only apply state if we have one (it might be null for empty notes)
-        if (stateBase64) {
-          // Decode base64 to Uint8Array
-          const binary = atob(stateBase64);
-          const state = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            state[i] = binary.charCodeAt(i);
-          }
-
-          // Apply the state to the Y.Doc (this includes old title and owner)
-          Y.applyUpdate(ydocRef.current, state);
-          console.log("[Duplicate] Applied state from sessionStorage, size:", state.length);
-        }
-
-        // Set the NEW title and owner in Y.Doc meta (overwrites old values)
-        const meta = ydocRef.current.getMap("meta");
-        meta.set("title", newTitle);
-        meta.set("titleEdited", "true");
-        // Reset owner to current user (the one who duplicated)
-        meta.set("ownerId", userId);
-        meta.set("ownerName", userName);
-        // Ensure duplicate is not locked or deleted
-        meta.set("locked", false);
-        meta.set("deleted", false);
-
-        // Set React state directly AND after a tick to beat any observer race
-        setTitle(newTitle);
-        setTimeout(() => setTitle(newTitle), 0);
-
-        // Update the store with the correct title and owner immediately
-        onTitleChange?.(newTitle);
-        updateNoteOwner(noteId, userId, userName);
-
-        console.log("[Duplicate] Applied successfully, title:", newTitle);
-      } catch (err) {
-        console.error("[Duplicate] Failed to apply state:", err);
-      }
-    } else {
-      // No sessionStorage data - check if this is a duplicate note that needs title/owner update
-      // The state should have been loaded by y-partykit from /init persisted data
-      const duplicateTitleKey = `duplicateTitle:${noteId}`;
-      try {
-        const titleData = sessionStorage.getItem(duplicateTitleKey);
-        if (titleData) {
-          sessionStorage.removeItem(duplicateTitleKey);
-          const { title: newTitle } = JSON.parse(titleData);
-
-          // Just update title and owner, state was loaded by y-partykit
-          const meta = ydocRef.current.getMap("meta");
-          meta.set("title", newTitle);
-          meta.set("titleEdited", "true");
-          meta.set("ownerId", userId);
-          meta.set("ownerName", userName);
-          // Ensure duplicate is not locked or deleted
-          meta.set("locked", false);
-          meta.set("deleted", false);
-
-          setTitle(newTitle);
-          onTitleChange?.(newTitle);
-          updateNoteOwner(noteId, userId, userName);
-          console.log("[Duplicate] Applied title from fallback, state loaded by server");
-        }
-      } catch {
-        // Ignore
-      }
-    }
-  }, [isConnected, noteId, onTitleChange, userId, userName, updateNoteOwner]);
+  }, [isConnected, noteId, updateNoteOwner]);
 
   useEffect(() => {
     const updateMeta = () => {
@@ -1740,35 +1719,6 @@ export function CollaborativeEditor({
           )}
         </Box>
 
-        {/* Mobile Sync Status Footer */}
-        {isMobile && viewMode === "editing" && (
-          <Tooltip.Root openDelay={100} closeDelay={50}>
-            <Tooltip.Trigger asChild>
-              <HStack
-                px={4}
-                py={2}
-                bg="gray.50"
-                borderTop="1px solid"
-                borderColor="gray.100"
-                justify="center"
-                gap={1}
-                cursor="help"
-              >
-                <LuCloud size={14} color={isConnected ? "#9CA3AF" : "#F97316"} />
-                <Text fontSize="xs" color={isConnected ? "gray.400" : "orange.500"}>
-                  {isConnected ? "Synced" : "Offline"}
-                </Text>
-              </HStack>
-            </Tooltip.Trigger>
-            <Tooltip.Positioner>
-              <Tooltip.Content>
-                {isConnected
-                  ? "Changes sync instantly with all collaborators"
-                  : "Reconnecting... Changes will sync when online"}
-              </Tooltip.Content>
-            </Tooltip.Positioner>
-          </Tooltip.Root>
-        )}
         </Box>
 
         {/* History Panel - sidebar */}

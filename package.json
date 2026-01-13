@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check": "tsc --noEmit",
-    "deploy:party": "partykit deploy"
+    "deploy:party": "partykit deploy",
+    "deploy:all": "npm run build && partykit deploy && echo Vercel deploys automatically on git push"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.30.0",
