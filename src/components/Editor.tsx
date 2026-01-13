@@ -405,7 +405,8 @@ export function CollaborativeEditor({
       Y.applyUpdate(tempDoc, data.state);
 
       // Create temp TipTap editor to extract HTML
-      const tempFragment = tempDoc.getXmlFragment("default");
+      // TipTap Collaboration uses "prosemirror" as the fragment name
+      const tempFragment = tempDoc.getXmlFragment("prosemirror");
 
       // Get HTML from temp fragment using a temporary TipTap editor
       // We need to manually serialize the Y.XmlFragment to HTML
