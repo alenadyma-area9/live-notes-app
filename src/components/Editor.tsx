@@ -1101,13 +1101,17 @@ export function CollaborativeEditor({
                     variant="ghost"
                     size="sm"
                     color="gray.600"
+                    onMouseDown={(e) => {
+                      // Prevent blur to keep text selection
+                      e.preventDefault();
+                    }}
                   >
                     <Text fontWeight="bold" fontSize="md">Aa</Text>
                   </IconButton>
                 </Menu.Trigger>
                 <Portal>
                   <Menu.Positioner>
-                    <Menu.Content minW="160px">
+                    <Menu.Content minW="180px">
                       <Menu.Item value="bold" onClick={() => editor.chain().focus().toggleBold().run()}>
                         <Text fontWeight="bold">B</Text>
                         <Text>Bold</Text>
@@ -1134,11 +1138,6 @@ export function CollaborativeEditor({
                         <Text>Heading 2</Text>
                         {editor.isActive('heading', { level: 2 }) && <LuCheck />}
                       </Menu.Item>
-                      <Menu.Item value="h3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
-                        <Text fontWeight="bold">H3</Text>
-                        <Text>Heading 3</Text>
-                        {editor.isActive('heading', { level: 3 }) && <LuCheck />}
-                      </Menu.Item>
                       <Menu.Separator />
                       <Menu.Item value="bullet" onClick={() => editor.chain().focus().toggleBulletList().run()}>
                         <Text>•</Text>
@@ -1154,6 +1153,23 @@ export function CollaborativeEditor({
                         <Text>☑</Text>
                         <Text>Task list</Text>
                         {editor.isActive('taskList') && <LuCheck />}
+                      </Menu.Item>
+                      <Menu.Separator />
+                      <Menu.Item value="red" onClick={() => editor.chain().focus().setColor('#ef4444').run()}>
+                        <Box w={4} h={4} borderRadius="full" bg="#ef4444" />
+                        <Text>Red text</Text>
+                      </Menu.Item>
+                      <Menu.Item value="blue" onClick={() => editor.chain().focus().setColor('#3b82f6').run()}>
+                        <Box w={4} h={4} borderRadius="full" bg="#3b82f6" />
+                        <Text>Blue text</Text>
+                      </Menu.Item>
+                      <Menu.Item value="highlight-yellow" onClick={() => editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()}>
+                        <Box w={4} h={4} borderRadius="sm" bg="#fef08a" border="1px solid" borderColor="gray.300" />
+                        <Text>Yellow highlight</Text>
+                      </Menu.Item>
+                      <Menu.Item value="highlight-green" onClick={() => editor.chain().focus().toggleHighlight({ color: '#bbf7d0' }).run()}>
+                        <Box w={4} h={4} borderRadius="sm" bg="#bbf7d0" border="1px solid" borderColor="gray.300" />
+                        <Text>Green highlight</Text>
                       </Menu.Item>
                       <Menu.Separator />
                       <Menu.Item value="clear" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
@@ -1175,6 +1191,10 @@ export function CollaborativeEditor({
                     variant="ghost"
                     size="sm"
                     color="gray.600"
+                    onMouseDown={(e) => {
+                      // Prevent blur to keep text selection
+                      e.preventDefault();
+                    }}
                   >
                     <Text fontWeight="bold" fontSize="lg">+</Text>
                   </IconButton>
