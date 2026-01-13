@@ -53,11 +53,12 @@ export function NotePage() {
           const data = await res.json();
           setNoteExists(data.exists);
         } else {
-          setNoteExists(false);
+          // Endpoint might not exist yet, assume note exists and let editor handle it
+          setNoteExists(true);
         }
       } catch {
-        // On error, assume it doesn't exist
-        setNoteExists(false);
+        // On error, assume note exists and let editor handle it
+        setNoteExists(true);
       }
     };
 
