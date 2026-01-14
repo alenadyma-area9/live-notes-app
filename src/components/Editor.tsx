@@ -14,7 +14,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
-import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical, LuCircleX, LuImage } from "react-icons/lu";
+import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical, LuCircleX } from "react-icons/lu";
 import { Toolbar } from "./Toolbar";
 import { CollaboratorsList } from "./CollaboratorsList";
 import { HistoryPanel } from "./HistoryPanel";
@@ -104,7 +104,6 @@ export function CollaborativeEditor({
   const [lockDialogOpen, setLockDialogOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isEditorFocused, setIsEditorFocused] = useState(false);
 
   const showToast = useCallback((message: string, type: "success" | "info" | "error" = "success") => {
     setToast({ message, type });
@@ -597,8 +596,6 @@ export function CollaborativeEditor({
           registerUser();
         }
       },
-      onFocus: () => setIsEditorFocused(true),
-      onBlur: () => setIsEditorFocused(false),
     },
     [provider, userName, userColor, registerUser]
   );
@@ -1035,57 +1032,6 @@ export function CollaborativeEditor({
             {/* Spacer */}
             <Box flex={1} />
 
-            {/* Link button */}
-            {viewMode === "editing" && editor && (
-              <IconButton
-                aria-label="Add link"
-                variant="ghost"
-                size="sm"
-                color="gray.600"
-                onClick={() => {
-                  const url = prompt('Enter URL:');
-                  if (url) {
-                    const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
-                    editor.chain().focus().setLink({ href: normalizedUrl }).run();
-                  }
-                }}
-              >
-                <LuExternalLink size={18} />
-              </IconButton>
-            )}
-
-            {/* Image button */}
-            {viewMode === "editing" && editor && (
-              <IconButton
-                aria-label="Add image"
-                variant="ghost"
-                size="sm"
-                color="gray.600"
-                onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = 'image/*';
-                  input.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
-                    if (file) {
-                      if (file.size > 5 * 1024 * 1024) {
-                        showToast("Image too large (max 5MB)", "error");
-                        return;
-                      }
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        editor.chain().focus().setImage({ src: reader.result as string }).run();
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  };
-                  input.click();
-                }}
-              >
-                <LuImage size={18} />
-              </IconButton>
-            )}
-
             {/* More Menu (Share, Save, History, Duplicate, Lock, Delete) */}
             <Menu.Root positioning={{ placement: "bottom-end" }}>
               <Menu.Trigger asChild>
@@ -1490,18 +1436,16 @@ export function CollaborativeEditor({
             display="flex"
             flexDirection="column"
           >
-        {/* Desktop: Toolbar outside scroll area */}
-        {!isMobile && viewMode === "editing" && (
+        {/* Toolbar - same for mobile and desktop */}
+        {viewMode === "editing" && (
           <Box
             bg="gray.50"
             borderBottom="1px solid"
             borderColor="gray.100"
-            overflowX="visible"
+            overflowX="auto"
             overflowY="hidden"
           >
-            <Box>
-              <Toolbar editor={editor} />
-            </Box>
+            <Toolbar editor={editor} />
           </Box>
         )}
 
@@ -1567,7 +1511,7 @@ export function CollaborativeEditor({
             <Box
               p={{ base: 4, md: 4 }}
               pt={{ base: 3, md: 3 }}
-              pb={{ base: isEditorFocused ? "60px" : 4, md: 4 }}
+              pb={4}
               flex={1}
               display="flex"
               flexDirection="column"
@@ -1667,130 +1611,6 @@ export function CollaborativeEditor({
             />
           )}
         </Box>
-
-        {/* Mobile Bottom Toolbar - appears above keyboard */}
-        {isMobile && viewMode === "editing" && editor && isEditorFocused && (
-          <Box
-            position="fixed"
-            bottom={0}
-            left={0}
-            right={0}
-            bg="gray.50"
-            borderTop="1px solid"
-            borderColor="gray.200"
-            px={1}
-            py={1.5}
-            zIndex={1000}
-            css={{
-              paddingBottom: "env(safe-area-inset-bottom, 8px)",
-            }}
-          >
-            <HStack gap={0} justify="space-around">
-              {/* Bold */}
-              <IconButton
-                aria-label="Bold"
-                variant="ghost"
-                size="sm"
-                color={editor.isActive('bold') ? "#4F46E5" : "gray.600"}
-                bg={editor.isActive('bold') ? "#EEF2FF" : undefined}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}
-                minW="36px"
-              >
-                <Text fontWeight="black" fontSize="md">B</Text>
-              </IconButton>
-
-              {/* Italic */}
-              <IconButton
-                aria-label="Italic"
-                variant="ghost"
-                size="sm"
-                color={editor.isActive('italic') ? "#4F46E5" : "gray.600"}
-                bg={editor.isActive('italic') ? "#EEF2FF" : undefined}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}
-                minW="36px"
-              >
-                <Text fontStyle="italic" fontSize="md">I</Text>
-              </IconButton>
-
-              {/* H1 */}
-              <IconButton
-                aria-label="Heading 1"
-                variant="ghost"
-                size="sm"
-                color={editor.isActive('heading', { level: 1 }) ? "#4F46E5" : "gray.600"}
-                bg={editor.isActive('heading', { level: 1 }) ? "#EEF2FF" : undefined}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: 1 }).run(); }}
-                minW="36px"
-              >
-                <Text fontWeight="bold" fontSize="sm">H1</Text>
-              </IconButton>
-
-              <Box w="1px" h={5} bg="gray.300" />
-
-              {/* Bullet List */}
-              <IconButton
-                aria-label="Bullet list"
-                variant="ghost"
-                size="sm"
-                color={editor.isActive('bulletList') ? "#4F46E5" : "gray.600"}
-                bg={editor.isActive('bulletList') ? "#EEF2FF" : undefined}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}
-                minW="36px"
-              >
-                <Text fontSize="md">•≡</Text>
-              </IconButton>
-
-              {/* Task List */}
-              <IconButton
-                aria-label="Task list"
-                variant="ghost"
-                size="sm"
-                color={editor.isActive('taskList') ? "#4F46E5" : "gray.600"}
-                bg={editor.isActive('taskList') ? "#EEF2FF" : undefined}
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleTaskList().run(); }}
-                minW="36px"
-              >
-                <Text fontSize="md">☑</Text>
-              </IconButton>
-
-              <Box w="1px" h={5} bg="gray.300" />
-
-              {/* Red text */}
-              <IconButton
-                aria-label="Red text"
-                variant="ghost"
-                size="sm"
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setColor('#ef4444').run(); }}
-                minW="36px"
-              >
-                <Box w={4} h={4} borderRadius="full" bg="#ef4444" />
-              </IconButton>
-
-              {/* Yellow highlight */}
-              <IconButton
-                aria-label="Yellow highlight"
-                variant="ghost"
-                size="sm"
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run(); }}
-                minW="36px"
-              >
-                <Box w={4} h={4} borderRadius="sm" bg="#fef08a" border="1px solid" borderColor="gray.400" />
-              </IconButton>
-
-              {/* Clear formatting */}
-              <IconButton
-                aria-label="Clear formatting"
-                variant="ghost"
-                size="sm"
-                color="gray.600"
-                onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().unsetAllMarks().clearNodes().run(); }}
-                minW="36px"
-              >
-                <LuCircleX size={18} />
-              </IconButton>
-            </HStack>
-          </Box>
-        )}
 
         </Box>
 
