@@ -114,7 +114,7 @@ export default class YjsServer implements Party.Server {
       return Response.json({ id: versionId, state: stateBase64 }, { headers: corsHeaders });
     }
 
-    // POST /restore/:id - returns the version state for client to apply
+    // POST /restore/:id - restore version on server and return state
     if (req.method === "POST" && url.pathname.includes("/restore/")) {
       try {
         const versionId = url.pathname.split("/restore/")[1];
@@ -124,16 +124,54 @@ export default class YjsServer implements Party.Server {
           return Response.json({ error: "Version not found" }, { status: 404, headers: corsHeaders });
         }
 
-        // Save current state before restore
         const ydoc = await unstable_getYDoc(this.room);
         if (ydoc) {
-          await this.forceSaveVersion(ydoc);
+          // 1. Save current state before restore (bypass time check)
+          await this.forceSaveVersion(ydoc, true);
+
+          // 2. Apply the old version state to the Y.Doc
+          const stateBytes = base64ToUint8Array(stateBase64);
+
+          // Create temp doc to get the old content
+          const tempDoc = new Y.Doc();
+          Y.applyUpdate(tempDoc, stateBytes);
+
+          // Get fragments
+          const currentFragment = ydoc.getXmlFragment("prosemirror");
+          const tempFragment = tempDoc.getXmlFragment("prosemirror");
+
+          // Clear current and copy from old version
+          ydoc.transact(() => {
+            // Delete current content
+            if (currentFragment.length > 0) {
+              currentFragment.delete(0, currentFragment.length);
+            }
+
+            // Copy old content - use toArray and insert
+            const children = tempFragment.toArray();
+            for (const child of children) {
+              currentFragment.push([child.clone()]);
+            }
+          });
+
+          // Restore title from old version
+          const tempMeta = tempDoc.getMap("meta");
+          const oldTitle = tempMeta.get("title") as string;
+          if (oldTitle) {
+            const meta = ydoc.getMap("meta");
+            meta.set("title", oldTitle);
+          }
+
+          tempDoc.destroy();
+
+          // 3. Save the restored version
+          await this.forceSaveVersion(ydoc, true);
         }
 
         // Clear the hash so changes are tracked fresh
         await this.room.storage.delete("lastStateHash");
 
-        // Return the version state for client to apply
+        // Return success and the state for client to sync title
         return Response.json({ success: true, state: stateBase64 }, { headers: corsHeaders });
       } catch (err) {
         console.error("Restore error:", err);
@@ -334,8 +372,8 @@ export default class YjsServer implements Party.Server {
     const MIN_CHAR_CHANGE = 20;        // Minimum 20 chars changed
     const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
 
-    // Get text content for character counting
-    const xmlFragment = ydoc.getXmlFragment("default");
+    // Get text content for character counting - TipTap uses "prosemirror"
+    const xmlFragment = ydoc.getXmlFragment("prosemirror");
     const contentText = xmlFragment.toString();
     const currentLength = contentText.length;
 
@@ -388,7 +426,7 @@ export default class YjsServer implements Party.Server {
     await this.saveVersionInternal(ydoc, stateBase64, currentHash, currentLength, now);
   }
 
-  async forceSaveVersion(ydoc: Y.Doc) {
+  async forceSaveVersion(ydoc: Y.Doc, bypassTimeCheck: boolean = false) {
     const now = Date.now();
     const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
     const MIN_TIME_BETWEEN = 30000;    // Minimum 30 seconds between versions
@@ -414,12 +452,14 @@ export default class YjsServer implements Party.Server {
       return;
     }
 
-    // Check minimum time between versions
-    const lastVersionSave = await this.room.storage.get<number>("lastVersionSave") || 0;
-    if (now - lastVersionSave < MIN_TIME_BETWEEN) {
-      // Just update tracking, don't create new version
-      await this.room.storage.put("lastStateHash", currentHash);
-      return;
+    // Check minimum time between versions (skip if bypassTimeCheck)
+    if (!bypassTimeCheck) {
+      const lastVersionSave = await this.room.storage.get<number>("lastVersionSave") || 0;
+      if (now - lastVersionSave < MIN_TIME_BETWEEN) {
+        // Just update tracking, don't create new version
+        await this.room.storage.put("lastStateHash", currentHash);
+        return;
+      }
     }
 
     // Check if identical to most recent version

@@ -422,69 +422,15 @@ export function CollaborativeEditor({
   }, [titleMap, registerUser]);
 
   const handleHistoryRestore = useCallback(async (data: { state: Uint8Array; title: string }) => {
-    if (!ydocRef.current) {
-      console.error("[Restore] No Y.Doc available");
-      return;
-    }
-
+    // Server already applied the restore - just update local title state
     try {
-      const protocol = partykitHost.includes("localhost") ? "http" : "https";
-
-      // 1. Save current version before restoring
-      await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
-        method: "POST",
-      });
-      console.log("[Restore] Saved current version before restore");
-
-      const ydoc = ydocRef.current;
-
-      // Create temp doc with the old state
-      const tempDoc = new Y.Doc();
-      Y.applyUpdate(tempDoc, data.state);
-
-      // Get fragments - TipTap uses "prosemirror"
-      const currentFragment = ydoc.getXmlFragment("prosemirror");
-      const tempFragment = tempDoc.getXmlFragment("prosemirror");
-
-      // Clear current content and copy from temp
-      ydoc.transact(() => {
-        // Delete all current content
-        currentFragment.delete(0, currentFragment.length);
-
-        // Clone each element from temp to current
-        for (let i = 0; i < tempFragment.length; i++) {
-          const child = tempFragment.get(i);
-          if (child instanceof Y.XmlElement) {
-            const clone = cloneXmlElement(child);
-            currentFragment.push([clone]);
-          } else if (child instanceof Y.XmlText) {
-            const textClone = new Y.XmlText();
-            textClone.applyDelta(child.toDelta());
-            currentFragment.push([textClone]);
-          }
-        }
-      });
-
-      tempDoc.destroy();
-
-      // Update title in Y.Doc meta
       if (data.title) {
-        titleMap.set("title", data.title);
         setTitle(data.title);
         onTitleChange?.(data.title);
       }
 
-      // 2. Save restored version as new version
-      // Small delay to ensure Y.js has propagated changes
-      setTimeout(async () => {
-        await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
-          method: "POST",
-        });
-        console.log("[Restore] Saved restored version");
-      }, 500);
-
       showToast("Version restored successfully", "success");
-      console.log("[Restore] Successfully restored version");
+      console.log("[Restore] Server restored version, title updated");
     } catch (err) {
       console.error("[Restore] Failed:", err);
       showToast("Failed to restore version", "error");
@@ -494,34 +440,7 @@ export function CollaborativeEditor({
     setCompareState(null);
     setViewMode("editing");
     setHistoryOpen(false);
-  }, [titleMap, onTitleChange, showToast, partykitHost, noteId]);
-
-  // Helper function to deep clone Y.XmlElement
-  const cloneXmlElement = (element: Y.XmlElement): Y.XmlElement => {
-    const clone = new Y.XmlElement(element.nodeName);
-
-    // Copy attributes
-    const attrs = element.getAttributes();
-    for (const [key, value] of Object.entries(attrs)) {
-      if (value !== undefined) {
-        clone.setAttribute(key, value);
-      }
-    }
-
-    // Copy children
-    for (let i = 0; i < element.length; i++) {
-      const child = element.get(i);
-      if (child instanceof Y.XmlElement) {
-        clone.push([cloneXmlElement(child)]);
-      } else if (child instanceof Y.XmlText) {
-        const textClone = new Y.XmlText();
-        textClone.applyDelta(child.toDelta());
-        clone.push([textClone]);
-      }
-    }
-
-    return clone;
-  };
+  }, [onTitleChange, showToast]);
 
   const handleLockClick = useCallback(() => {
     setLockDialogOpen(true);
