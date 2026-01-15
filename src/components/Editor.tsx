@@ -12,6 +12,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
+import Underline from "@tiptap/extension-underline";
 import * as Y from "yjs";
 import YPartyKitProvider from "y-partykit/provider";
 import { LuHistory, LuShare2, LuCheck, LuTrash2, LuExternalLink, LuCopy, LuLock, LuLockOpen, LuPenLine, LuUnlink, LuSave, LuCloud, LuArrowLeft, LuEllipsisVertical, LuCircleX } from "react-icons/lu";
@@ -604,6 +605,7 @@ export function CollaborativeEditor({
         }),
         TextStyle,
         Color,
+        Underline,
         Highlight.configure({
           multicolor: true,
         }),
@@ -967,6 +969,9 @@ export function CollaborativeEditor({
         margin: "0.5em 0",
         cursor: "pointer",
         transition: "box-shadow 0.15s ease, outline 0.15s ease",
+        "@media (max-width: 768px)": {
+          maxWidth: "min(75%, 300px)",
+        },
         "&:hover": {
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
         },
@@ -1049,13 +1054,20 @@ export function CollaborativeEditor({
       {/* Mobile Layout */}
       {isMobile ? (
         <>
+          {/* Mobile Sticky Header Group */}
+          <Box
+            position="sticky"
+            top={0}
+            zIndex={20}
+            bg="white"
+            flexShrink={0}
+          >
           {/* Mobile Top Bar */}
           <Box
             h="52px"
             bg="white"
             borderBottom="1px solid"
             borderColor="gray.100"
-            flexShrink={0}
             display="flex"
             alignItems="center"
             px={2}
@@ -1164,6 +1176,10 @@ export function CollaborativeEditor({
                 _focus={{ boxShadow: "none", borderColor: "transparent" }}
                 px={0}
                 h="auto"
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
+                data-form-type="other"
               />
             ) : (
               <Text fontSize="lg" fontWeight="semibold" color="gray.700">
@@ -1179,6 +1195,21 @@ export function CollaborativeEditor({
               <Text fontSize="xs" color="orange.700">This note is locked</Text>
             </HStack>
           )}
+
+          {/* Mobile Toolbar - inside sticky header */}
+          {viewMode === "editing" && editor && (
+            <Box
+              bg="gray.50"
+              borderBottom="1px solid"
+              borderColor="gray.100"
+              overflowX="auto"
+              overflowY="hidden"
+            >
+              <Toolbar editor={editor} />
+            </Box>
+          )}
+          </Box>
+          {/* End Mobile Sticky Header Group */}
         </>
       ) : (
         /* Desktop Top Bar */
@@ -1237,6 +1268,10 @@ export function CollaborativeEditor({
                 boxShadow="none"
                 _focus={{ boxShadow: "none", borderColor: "transparent" }}
                 px={0}
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
+                data-form-type="other"
                 css={{
                   textOverflow: "ellipsis",
                   overflow: "hidden",
@@ -1480,8 +1515,8 @@ export function CollaborativeEditor({
             display="flex"
             flexDirection="column"
           >
-        {/* Toolbar - same for mobile and desktop */}
-        {viewMode === "editing" && (
+        {/* Desktop Toolbar - mobile has it in sticky header */}
+        {!isMobile && viewMode === "editing" && (
           <Box
             bg="gray.50"
             borderBottom="1px solid"
@@ -1626,8 +1661,11 @@ export function CollaborativeEditor({
                   }
                 }}
                 cursor="text"
+                data-1p-ignore
+                data-lpignore="true"
+                data-form-type="other"
               >
-                <EditorContent editor={editor} />
+                <EditorContent editor={editor} autoComplete="off" />
               </Box>
             </Box>
           )}

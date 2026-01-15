@@ -1,15 +1,58 @@
-import { HStack, IconButton, Box, Text } from "@chakra-ui/react";
+import { HStack, IconButton, Box, Text, Tooltip } from "@chakra-ui/react";
 import { Editor } from "@tiptap/react";
 import {
   LuRemoveFormatting,
   LuImage,
   LuLink,
   LuSquareCheck,
+  LuUnderline,
 } from "react-icons/lu";
 import { useRef } from "react";
 
 interface ToolbarProps {
   editor: Editor | null;
+}
+
+// Tooltip wrapper component for cleaner code
+function ToolbarButton({
+  label,
+  shortcut,
+  children,
+  onClick,
+  isActive = false,
+  ...props
+}: {
+  label: string;
+  shortcut?: string;
+  children: React.ReactNode;
+  onClick: () => void;
+  isActive?: boolean;
+  [key: string]: unknown;
+}) {
+  return (
+    <Tooltip.Root openDelay={300} closeDelay={100}>
+      <Tooltip.Trigger asChild>
+        <IconButton
+          aria-label={label}
+          variant="ghost"
+          size="sm"
+          minW="32px"
+          h="32px"
+          bg={isActive ? "#EEF2FF" : undefined}
+          color={isActive ? "#4F46E5" : "gray.600"}
+          onClick={onClick}
+          {...props}
+        >
+          {children}
+        </IconButton>
+      </Tooltip.Trigger>
+      <Tooltip.Positioner>
+        <Tooltip.Content>
+          <Text fontSize="xs">{label}{shortcut && ` (${shortcut})`}</Text>
+        </Tooltip.Content>
+      </Tooltip.Positioner>
+    </Tooltip.Root>
+  );
 }
 
 export function Toolbar({ editor }: ToolbarProps) {
@@ -36,7 +79,6 @@ export function Toolbar({ editor }: ToolbarProps) {
     };
     reader.readAsDataURL(file);
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -50,55 +92,49 @@ export function Toolbar({ editor }: ToolbarProps) {
     }
   };
 
-  const buttonStyle = {
-    variant: "ghost" as const,
-    size: "sm" as const,
-    minW: "32px",
-    h: "32px",
-  };
-
-  const getActiveStyle = (isActive: boolean) => ({
-    bg: isActive ? "#EEF2FF" : undefined,
-    color: isActive ? "#4F46E5" : "gray.600",
-  });
-
   return (
     <HStack
       px={{ base: 2, md: 4 }}
       py={1.5}
-      bg="gray.50"
-      borderBottom="1px solid"
-      borderColor="gray.200"
       gap={0.5}
       flexWrap="wrap"
     >
       {/* Bold */}
-      <IconButton
-        aria-label="Bold"
-        {...buttonStyle}
-        {...getActiveStyle(editor.isActive("bold"))}
+      <ToolbarButton
+        label="Bold"
+        shortcut="Ctrl+B"
         onClick={() => editor.chain().focus().toggleBold().run()}
+        isActive={editor.isActive("bold")}
       >
         <Text fontWeight="black" fontSize="sm">B</Text>
-      </IconButton>
+      </ToolbarButton>
 
       {/* Italic */}
-      <IconButton
-        aria-label="Italic"
-        {...buttonStyle}
-        {...getActiveStyle(editor.isActive("italic"))}
+      <ToolbarButton
+        label="Italic"
+        shortcut="Ctrl+I"
         onClick={() => editor.chain().focus().toggleItalic().run()}
+        isActive={editor.isActive("italic")}
       >
         <Text fontStyle="italic" fontSize="sm">I</Text>
-      </IconButton>
+      </ToolbarButton>
+
+      {/* Underline */}
+      <ToolbarButton
+        label="Underline"
+        shortcut="Ctrl+U"
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        isActive={editor.isActive("underline")}
+      >
+        <LuUnderline size={16} />
+      </ToolbarButton>
 
       {/* Separator */}
       <Box w="1px" h={5} bg="gray.300" mx={1} />
 
-      {/* Red Text - toggle between red and default */}
-      <IconButton
-        aria-label="Red text"
-        {...buttonStyle}
+      {/* Red Text */}
+      <ToolbarButton
+        label="Red text"
         onClick={() => {
           if (editor.isActive('textStyle', { color: '#DC2626' })) {
             editor.chain().focus().unsetColor().run();
@@ -116,12 +152,11 @@ export function Toolbar({ editor }: ToolbarProps) {
             borderRadius="full"
           />
         </Box>
-      </IconButton>
+      </ToolbarButton>
 
-      {/* Yellow Highlight - toggle on/off */}
-      <IconButton
-        aria-label="Yellow highlight"
-        {...buttonStyle}
+      {/* Yellow Highlight */}
+      <ToolbarButton
+        label="Highlight"
         onClick={() => {
           if (editor.isActive('highlight', { color: '#fef08a' })) {
             editor.chain().focus().unsetHighlight().run();
@@ -131,50 +166,50 @@ export function Toolbar({ editor }: ToolbarProps) {
         }}
       >
         <Box
-          w={4}
-          h={4}
-          borderRadius="sm"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
           bg={editor.isActive('highlight', { color: '#fef08a' }) ? "transparent" : "#fef08a"}
-          border="2px solid"
-          borderColor={editor.isActive('highlight', { color: '#fef08a' }) ? "gray.600" : "gray.400"}
-        />
-      </IconButton>
+          border={editor.isActive('highlight', { color: '#fef08a' }) ? "1.5px solid" : "none"}
+          borderColor="gray.500"
+          px={1}
+          borderRadius="sm"
+        >
+          <Text fontWeight="bold" fontSize="sm" lineHeight={1} color="gray.700">A</Text>
+        </Box>
+      </ToolbarButton>
 
       {/* Separator */}
       <Box w="1px" h={5} bg="gray.300" mx={1} />
 
       {/* Checkbox List */}
-      <IconButton
-        aria-label="Checkbox list"
-        {...buttonStyle}
-        {...getActiveStyle(editor.isActive("taskList"))}
+      <ToolbarButton
+        label="Checkbox list"
         onClick={() => editor.chain().focus().toggleTaskList().run()}
+        isActive={editor.isActive("taskList")}
       >
         <LuSquareCheck size={16} />
-      </IconButton>
+      </ToolbarButton>
 
       {/* Separator */}
       <Box w="1px" h={5} bg="gray.300" mx={1} />
 
       {/* Link */}
-      <IconButton
-        aria-label="Add link"
-        {...buttonStyle}
-        {...getActiveStyle(editor.isActive("link"))}
+      <ToolbarButton
+        label="Add link"
         onClick={handleAddLink}
+        isActive={editor.isActive("link")}
       >
         <LuLink size={16} />
-      </IconButton>
+      </ToolbarButton>
 
       {/* Image */}
-      <IconButton
-        aria-label="Insert image"
-        {...buttonStyle}
-        color="gray.600"
+      <ToolbarButton
+        label="Insert image"
         onClick={handleImageUpload}
       >
         <LuImage size={16} />
-      </IconButton>
+      </ToolbarButton>
 
       {/* Hidden file input */}
       <input
@@ -189,14 +224,13 @@ export function Toolbar({ editor }: ToolbarProps) {
       <Box w="1px" h={5} bg="gray.300" mx={1} />
 
       {/* Clear Formatting */}
-      <IconButton
-        aria-label="Clear formatting"
-        {...buttonStyle}
-        color="gray.600"
+      <ToolbarButton
+        label="Clear formatting"
+        shortcut="Ctrl+\"
         onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
       >
         <LuRemoveFormatting size={16} />
-      </IconButton>
+      </ToolbarButton>
     </HStack>
   );
 }

@@ -10,7 +10,13 @@ import {
   Tooltip,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import { LuRotateCcw, LuGitCompare, LuX, LuInfo } from "react-icons/lu";
+import { keyframes } from "@emotion/react";
+import { LuRotateCcw, LuGitCompare, LuX, LuInfo, LuRefreshCw } from "react-icons/lu";
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
 import * as Y from "yjs";
 import { ConfirmDialog, AlertDialog } from "./ConfirmDialog";
 
@@ -269,7 +275,7 @@ export function HistoryPanel({
       <HStack px={{ base: 2, md: 4 }} h="49px" bg="gray.50" borderBottom="1px solid" borderColor="gray.100" justify="space-between">
         <HStack gap={1}>
           <Text fontWeight="semibold" color="gray.700" fontSize={{ base: "sm", md: "md" }}>History</Text>
-          <Tooltip.Root openDelay={200} closeDelay={100}>
+          <Tooltip.Root openDelay={200} closeDelay={100} closeOnClick={false} interactive>
             <Tooltip.Trigger asChild>
               <IconButton
                 aria-label="Version info"
@@ -301,14 +307,28 @@ export function HistoryPanel({
             </Tooltip.Positioner>
           </Tooltip.Root>
         </HStack>
-        <IconButton
-          aria-label="Close history"
-          variant="ghost"
-          size="xs"
-          onClick={onClose}
-        >
-          <LuX />
-        </IconButton>
+        <HStack gap={0}>
+          <IconButton
+            aria-label="Refresh versions"
+            variant="ghost"
+            size="xs"
+            onClick={fetchVersions}
+            disabled={loading}
+            color="gray.500"
+            _hover={{ color: "gray.700" }}
+            css={loading ? { animation: `${spin} 1s linear infinite` } : undefined}
+          >
+            <LuRefreshCw size={14} />
+          </IconButton>
+          <IconButton
+            aria-label="Close history"
+            variant="ghost"
+            size="xs"
+            onClick={onClose}
+          >
+            <LuX />
+          </IconButton>
+        </HStack>
       </HStack>
 
       {/* Content */}
