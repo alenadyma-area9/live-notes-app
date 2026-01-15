@@ -336,8 +336,8 @@ export function CollaborativeEditor({
     }
   }, [isDeleted, noteId, removeRecentNote]);
 
-  // Periodic lock status check for non-owners viewing locked screen
-  // This ensures they see updates when owner unlocks the note
+  // Lock status check for non-owners
+  // Always check on connect, then periodically if locked
   useEffect(() => {
     if (!isConnected || isOwner) return;
 
@@ -361,9 +361,11 @@ export function CollaborativeEditor({
       }
     };
 
-    // Check immediately and then every 5 seconds when viewing locked screen
-    if (isLocked && !isOwner) {
-      checkLockStatus();
+    // Always check immediately for non-owners
+    checkLockStatus();
+
+    // Continue polling every 5 seconds if locked (to detect unlock)
+    if (isLocked) {
       const interval = setInterval(checkLockStatus, 5000);
       return () => clearInterval(interval);
     }
@@ -1050,7 +1052,7 @@ export function CollaborativeEditor({
   };
 
   return (
-    <VStack align="stretch" gap={0} h={{ base: "100dvh", md: "100%" }} flex={1} overflow="hidden">
+    <VStack align="stretch" gap={0} h="100%" flex={1} overflow="hidden">
       {/* Mobile Layout */}
       {isMobile ? (
         <>

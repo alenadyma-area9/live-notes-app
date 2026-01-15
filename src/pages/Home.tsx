@@ -23,48 +23,6 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || "localhost:1999";
 
 // Component that shows tooltip only when text is truncated
-function TruncatedText({
-  children,
-  maxW,
-  ...textProps
-}: {
-  children: string;
-  maxW?: string;
-} & React.ComponentProps<typeof Text>) {
-  const textRef = useRef<HTMLParagraphElement>(null);
-  const [isTruncated, setIsTruncated] = useState(false);
-
-  useEffect(() => {
-    const el = textRef.current;
-    if (el) {
-      setIsTruncated(el.scrollWidth > el.clientWidth);
-    }
-  }, [children]);
-
-  const textElement = (
-    <Text ref={textRef} truncate maxW={maxW} {...textProps}>
-      {children}
-    </Text>
-  );
-
-  if (!isTruncated) {
-    return textElement;
-  }
-
-  return (
-    <Tooltip.Root openDelay={300} closeDelay={50}>
-      <Tooltip.Trigger asChild>
-        {textElement}
-      </Tooltip.Trigger>
-      <Portal>
-        <Tooltip.Positioner>
-          <Tooltip.Content maxW="400px" zIndex={9999}>{children}</Tooltip.Content>
-        </Tooltip.Positioner>
-      </Portal>
-    </Tooltip.Root>
-  );
-}
-
 type OwnerFilter = "all" | "me" | "others" | "locked";
 type SortOption = "lastEdited" | "created" | "title" | "author";
 
@@ -870,7 +828,7 @@ export function Home() {
                       >
                         <HStack justify="space-between">
                           <Box minW={0} flex={1} opacity={note.isLocked ? 0.6 : 1}>
-                            <HStack gap={2}>
+                            <HStack gap={2} minW={0} flex={1}>
                               {note.isLocked && (
                                 <Box
                                   color="gray.500"
@@ -887,13 +845,16 @@ export function Home() {
                                   Locked
                                 </Box>
                               )}
-                              <TruncatedText
+                              <Text
                                 fontWeight="medium"
                                 color={displayTitle === "Untitled" ? "gray.400" : undefined}
                                 fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
+                                truncate
+                                flex={1}
+                                minW={0}
                               >
                                 {displayTitle}
-                              </TruncatedText>
+                              </Text>
                             </HStack>
                             <HStack gap={1} fontSize="xs" color="gray.500" ml={note.isLocked ? 0 : 0}>
                               <Text whiteSpace="nowrap">{formatDate(note.lastVisited)}</Text>
@@ -1030,16 +991,17 @@ export function Home() {
                         {/* Content area - reduced opacity when locked, extra right padding when locked to avoid badge overlap */}
                         <Box p={4} pb={14} pr={note.isLocked ? 16 : 4} opacity={note.isLocked ? 0.5 : 1}>
                           {/* Title at top */}
-                          <TruncatedText
+                          <Text
                             fontWeight="semibold"
                             fontSize="md"
                             color={displayTitle === "Untitled" ? "gray.400" : undefined}
                             fontStyle={displayTitle === "Untitled" ? "italic" : undefined}
                             mb={2}
                             lineHeight="1.4"
+                            truncate
                           >
                             {displayTitle}
-                          </TruncatedText>
+                          </Text>
 
                           {/* Content preview - 4 lines */}
                           <Text
