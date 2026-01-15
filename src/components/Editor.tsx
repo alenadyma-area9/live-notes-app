@@ -368,12 +368,55 @@ export function CollaborativeEditor({
     }
   }, [isConnected, isOwner, isLocked, noteId, partykitHost, updateNoteLocked]);
 
+  // Auto-save after 5 minutes of idle (no typing)
+  const lastTypingRef = useRef<number>(Date.now());
+  const idleSaveTriggeredRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    const protocol = partykitHost.includes("localhost") ? "http" : "https";
+    const IDLE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+    const checkIdle = () => {
+      const idleTime = Date.now() - lastTypingRef.current;
+      if (idleTime >= IDLE_THRESHOLD && !idleSaveTriggeredRef.current) {
+        idleSaveTriggeredRef.current = true;
+        fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version?mode=idle`, {
+          method: "POST",
+        }).catch(() => {});
+      }
+    };
+
+    // Check every 30 seconds if user is idle
+    const interval = setInterval(checkIdle, 30000);
+
+    return () => clearInterval(interval);
+  }, [partykitHost, noteId]);
+
+  // Track typing activity (using editorRef to avoid dependency issues)
+  useEffect(() => {
+    const checkEditor = setInterval(() => {
+      const ed = editorRef.current;
+      if (ed && !(ed as unknown as { _idleTrackerAttached?: boolean })._idleTrackerAttached) {
+        (ed as unknown as { _idleTrackerAttached?: boolean })._idleTrackerAttached = true;
+
+        const handleUpdate = () => {
+          lastTypingRef.current = Date.now();
+          idleSaveTriggeredRef.current = false;
+        };
+
+        ed.on('update', handleUpdate);
+      }
+    }, 100);
+
+    return () => clearInterval(checkEditor);
+  }, []);
+
   // Save version on page leave/close
   useEffect(() => {
     const handleBeforeUnload = () => {
       const protocol = partykitHost.includes("localhost") ? "http" : "https";
       navigator.sendBeacon(
-        `${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`,
+        `${protocol}://${partykitHost}/parties/notes/${noteId}/save-version?mode=pageClose`,
         ""
       );
     };
@@ -384,12 +427,12 @@ export function CollaborativeEditor({
       window.removeEventListener("beforeunload", handleBeforeUnload);
 
       const protocol = partykitHost.includes("localhost") ? "http" : "https";
-      fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
+      fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version?mode=pageClose`, {
         method: "POST",
         keepalive: true,
       }).catch(() => {
         navigator.sendBeacon(
-          `${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`,
+          `${protocol}://${partykitHost}/parties/notes/${noteId}/save-version?mode=pageClose`,
           ""
         );
       });
@@ -450,7 +493,8 @@ export function CollaborativeEditor({
     setIsSaving(true);
     try {
       const protocol = partykitHost.includes("localhost") ? "http" : "https";
-      await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version`, {
+      // ?manual=true bypasses time check - always save if content differs
+      await fetch(`${protocol}://${partykitHost}/parties/notes/${noteId}/save-version?mode=manual`, {
         method: "POST",
       });
       showToast("Version saved!", "success");

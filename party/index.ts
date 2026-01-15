@@ -41,20 +41,18 @@ export default class YjsServer implements Party.Server {
   constructor(readonly room: Party.Room) {}
 
   async onConnect(conn: Party.Connection) {
-    // Check lock state from storage (source of truth)
-    const isLocked = await this.room.storage.get<boolean>("locked");
-
     return onConnect(conn, this.room, {
       persist: { mode: "snapshot" },
       callback: {
         handler: async (ydoc) => {
           const meta = ydoc.getMap("meta");
 
-          // Sync lock state from storage to Y.Doc (storage is source of truth)
-          if (isLocked !== undefined) {
-            const docLocked = meta.get("locked");
-            if (docLocked !== isLocked) {
-              meta.set("locked", isLocked);
+          // Only initialize lock from storage if Y.Doc has no lock value yet
+          // This handles fresh connections but won't override user's lock changes
+          if (meta.get("locked") === undefined) {
+            const storedLocked = await this.room.storage.get<boolean>("locked");
+            if (storedLocked !== undefined) {
+              meta.set("locked", storedLocked);
             }
           }
 
@@ -126,8 +124,8 @@ export default class YjsServer implements Party.Server {
 
         const ydoc = await unstable_getYDoc(this.room);
         if (ydoc) {
-          // 1. Save current state before restore (bypass time check)
-          await this.forceSaveVersion(ydoc, true);
+          // 1. Save current state before restore
+          await this.forceSaveVersion(ydoc, "restore");
 
           // 2. Apply the old version state to the Y.Doc
           const stateBytes = base64ToUint8Array(stateBase64);
@@ -137,8 +135,8 @@ export default class YjsServer implements Party.Server {
           Y.applyUpdate(tempDoc, stateBytes);
 
           // Get fragments
-          const currentFragment = ydoc.getXmlFragment("prosemirror");
-          const tempFragment = tempDoc.getXmlFragment("prosemirror");
+          const currentFragment = ydoc.getXmlFragment("default");
+          const tempFragment = tempDoc.getXmlFragment("default");
 
           // Clear current and copy from old version
           ydoc.transact(() => {
@@ -165,7 +163,7 @@ export default class YjsServer implements Party.Server {
           tempDoc.destroy();
 
           // 3. Save the restored version
-          await this.forceSaveVersion(ydoc, true);
+          await this.forceSaveVersion(ydoc, "restore");
         }
 
         // Clear the hash so changes are tracked fresh
@@ -273,17 +271,18 @@ export default class YjsServer implements Party.Server {
       }
     }
 
-    // POST /save-version - force save version (on user leave)
+    // POST /save-version - force save version
+    // Query param ?mode=manual|idle|pageClose (default: pageClose)
     if (req.method === "POST" && url.pathname.endsWith("/save-version")) {
-      // This is best-effort - don't fail if doc is unavailable
+      const mode = (url.searchParams.get("mode") || "pageClose") as "manual" | "idle" | "pageClose";
+
       try {
         const ydoc = await unstable_getYDoc(this.room);
         if (ydoc) {
-          await this.forceSaveVersion(ydoc);
+          await this.forceSaveVersion(ydoc, mode);
         }
       } catch (err) {
         // Silently ignore - doc may be unavailable after disconnect
-        console.log("Save version skipped (doc unavailable):", err instanceof Error ? err.message : err);
       }
       return Response.json({ success: true }, { headers: corsHeaders });
     }
@@ -366,124 +365,89 @@ export default class YjsServer implements Party.Server {
     return Response.json({ error: "Not found" }, { status: 404, headers: corsHeaders });
   }
 
-  async maybeSaveVersion(ydoc: Y.Doc) {
-    const now = Date.now();
-    const IDLE_THRESHOLD = 60000;      // 60 seconds idle before saving
-    const MIN_CHAR_CHANGE = 20;        // Minimum 20 chars changed
-    const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
-
-    // Get text content for character counting - TipTap uses "prosemirror"
-    const xmlFragment = ydoc.getXmlFragment("prosemirror");
-    const contentText = xmlFragment.toString();
-    const currentLength = contentText.length;
-
-    // Skip if content is too short (empty or nearly empty note)
-    if (currentLength < MIN_CONTENT_LENGTH) {
-      return;
-    }
-
-    // Get current document state
-    const state = Y.encodeStateAsUpdate(ydoc);
-    const stateBase64 = uint8ArrayToBase64(state);
-    const currentHash = this.simpleHash(stateBase64);
-
-    // Check if identical to last saved state
-    const lastStateHash = await this.room.storage.get<string>("lastStateHash");
-    if (lastStateHash === currentHash) {
-      return;
-    }
-
-    // Check if identical to most recent version (avoid duplicates)
-    const versions = await this.room.storage.get<Version[]>("versions") || [];
-    if (versions.length > 0) {
-      const lastVersionState = await this.room.storage.get<string>(`version:${versions[0].id}`);
-      if (lastVersionState) {
-        const lastVersionHash = this.simpleHash(lastVersionState);
-        if (lastVersionHash === currentHash) {
-          // Content is same as last version, just update tracking
-          await this.room.storage.put("lastStateHash", currentHash);
-          return;
-        }
-      }
-    }
-
-    // Track editing activity
-    const lastSavedLength = await this.room.storage.get<number>("lastSavedLength") || 0;
-
-    // Check if enough time has passed since last version
-    const lastVersionSave = await this.room.storage.get<number>("lastVersionSave") || 0;
-    if (now - lastVersionSave < IDLE_THRESHOLD) {
-      return;
-    }
-
-    // Check if enough content changed
-    const charDiff = Math.abs(currentLength - lastSavedLength);
-    if (charDiff < MIN_CHAR_CHANGE) {
-      return;
-    }
-
-    // All conditions met - save version
-    await this.saveVersionInternal(ydoc, stateBase64, currentHash, currentLength, now);
+  // Helper: count words in text
+  countWords(text: string): number {
+    const cleaned = text.replace(/<[^>]*>/g, ' ').trim();
+    if (!cleaned) return 0;
+    return cleaned.split(/\s+/).filter(w => w.length > 0).length;
   }
 
-  async forceSaveVersion(ydoc: Y.Doc, bypassTimeCheck: boolean = false) {
-    const now = Date.now();
-    const MIN_CONTENT_LENGTH = 10;     // Don't save if content < 10 chars
-    const MIN_TIME_BETWEEN = 30000;    // Minimum 30 seconds between versions
+  // Helper: get content hash based on title + text only (not Yjs internals)
+  getContentHash(ydoc: Y.Doc): { hash: string; title: string; text: string; wordCount: number } {
+    const meta = ydoc.getMap("meta");
+    const title = (meta.get("title") as string) || "";
+    const xmlFragment = ydoc.getXmlFragment("default");
+    const text = xmlFragment.toString();
+    const wordCount = this.countWords(text);
+    const hash = this.simpleHash(title + text);
+    return { hash, title, text, wordCount };
+  }
 
-    // Get text content - TipTap uses "prosemirror" fragment
-    const xmlFragment = ydoc.getXmlFragment("prosemirror");
-    const contentText = xmlFragment.toString();
-    const currentLength = contentText.length;
+  // Check if change is significant (>10% or >200 words)
+  isSignificantChange(currentWords: number, lastWords: number): boolean {
+    const wordDiff = Math.abs(currentWords - lastWords);
+    if (wordDiff >= 200) return true;
+    if (lastWords === 0) return currentWords >= 20; // New content
+    const percentChange = (wordDiff / lastWords) * 100;
+    return percentChange >= 10;
+  }
+
+  async forceSaveVersion(ydoc: Y.Doc, mode: "manual" | "idle" | "pageClose" | "restore" = "manual") {
+    const now = Date.now();
+    const MIN_CONTENT_LENGTH = 10;
+
+    // Get content info
+    const { hash: currentHash, text, wordCount } = this.getContentHash(ydoc);
+    const contentLength = text.length;
 
     // Skip if content is too short
-    if (currentLength < MIN_CONTENT_LENGTH) {
+    if (contentLength < MIN_CONTENT_LENGTH) {
       return;
     }
 
-    // Get current document state
-    const state = Y.encodeStateAsUpdate(ydoc);
-    const stateBase64 = uint8ArrayToBase64(state);
-    const currentHash = this.simpleHash(stateBase64);
-
-    // Check if identical to last saved state
-    const lastStateHash = await this.room.storage.get<string>("lastStateHash");
-    if (lastStateHash === currentHash) {
+    // Check if identical to most recent saved version (avoid duplicates)
+    const lastVersionHash = await this.room.storage.get<string>("lastVersionContentHash");
+    if (lastVersionHash === currentHash) {
       return;
     }
 
-    // Check minimum time between versions (skip if bypassTimeCheck)
-    if (!bypassTimeCheck) {
-      const lastVersionSave = await this.room.storage.get<number>("lastVersionSave") || 0;
-      if (now - lastVersionSave < MIN_TIME_BETWEEN) {
-        // Just update tracking, don't create new version
-        await this.room.storage.put("lastStateHash", currentHash);
+    // For idle auto-save, check if change is significant
+    if (mode === "idle") {
+      const lastWordCount = await this.room.storage.get<number>("lastVersionWordCount") || 0;
+      if (!this.isSignificantChange(wordCount, lastWordCount)) {
         return;
       }
     }
 
-    // Check if identical to most recent version
-    const versions = await this.room.storage.get<Version[]>("versions") || [];
-    if (versions.length > 0) {
-      const lastVersionState = await this.room.storage.get<string>(`version:${versions[0].id}`);
-      if (lastVersionState) {
-        const lastVersionHash = this.simpleHash(lastVersionState);
-        if (lastVersionHash === currentHash) {
-          await this.room.storage.put("lastStateHash", currentHash);
-          return;
-        }
-      }
-    }
+    // Get full state for storage
+    const state = Y.encodeStateAsUpdate(ydoc);
+    const stateBase64 = uint8ArrayToBase64(state);
 
     // Save version
-    await this.saveVersionInternal(ydoc, stateBase64, currentHash, currentLength, now);
+    await this.saveVersionInternal(ydoc, stateBase64, currentHash, wordCount, now);
   }
+
+  // Legacy method - now redirects to forceSaveVersion
+  async maybeSaveVersion(ydoc: Y.Doc) {
+    // This is called on connect - only save if significant change
+    const { text } = this.getContentHash(ydoc);
+    if (text.length < 10) return;
+
+    const lastWordCount = await this.room.storage.get<number>("lastVersionWordCount") || 0;
+    const currentWordCount = this.countWords(text);
+
+    if (this.isSignificantChange(currentWordCount, lastWordCount)) {
+      await this.forceSaveVersion(ydoc, "idle");
+    }
+  }
+
+
 
   private async saveVersionInternal(
     ydoc: Y.Doc,
     stateBase64: string,
-    currentHash: string,
-    currentLength: number,
+    contentHash: string,
+    wordCount: number,
     now: number
   ) {
     const versions = await this.room.storage.get<Version[]>("versions") || [];
@@ -512,8 +476,8 @@ export default class YjsServer implements Party.Server {
     const updatedVersions = [newVersion, ...versions].slice(0, 50);
     await this.room.storage.put("versions", updatedVersions);
     await this.room.storage.put("lastVersionSave", now);
-    await this.room.storage.put("lastStateHash", currentHash);
-    await this.room.storage.put("lastSavedLength", currentLength);
+    await this.room.storage.put("lastVersionContentHash", contentHash);
+    await this.room.storage.put("lastVersionWordCount", wordCount);
   }
 
   simpleHash(str: string): string {

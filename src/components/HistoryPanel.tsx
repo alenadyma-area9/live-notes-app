@@ -7,9 +7,10 @@ import {
   HStack,
   Text,
   Spinner,
+  Tooltip,
   useBreakpointValue,
 } from "@chakra-ui/react";
-import { LuRotateCcw, LuGitCompare, LuX } from "react-icons/lu";
+import { LuRotateCcw, LuGitCompare, LuX, LuInfo } from "react-icons/lu";
 import * as Y from "yjs";
 import { ConfirmDialog, AlertDialog } from "./ConfirmDialog";
 
@@ -266,7 +267,40 @@ export function HistoryPanel({
     >
       {/* Header */}
       <HStack px={{ base: 2, md: 4 }} h="49px" bg="gray.50" borderBottom="1px solid" borderColor="gray.100" justify="space-between">
-        <Text fontWeight="semibold" color="gray.700" fontSize={{ base: "sm", md: "md" }}>History</Text>
+        <HStack gap={1}>
+          <Text fontWeight="semibold" color="gray.700" fontSize={{ base: "sm", md: "md" }}>History</Text>
+          <Tooltip.Root openDelay={200} closeDelay={100}>
+            <Tooltip.Trigger asChild>
+              <IconButton
+                aria-label="Version info"
+                variant="ghost"
+                size="xs"
+                color="gray.400"
+                _hover={{ color: "gray.600" }}
+                minW="auto"
+                h="auto"
+                p={0.5}
+              >
+                <LuInfo size={14} />
+              </IconButton>
+            </Tooltip.Trigger>
+            <Tooltip.Positioner>
+              <Tooltip.Content>
+                <Box p={2} maxW="260px">
+                  <Text fontWeight="semibold" fontSize="xs" mb={1.5}>When versions are saved:</Text>
+                  <VStack align="start" gap={1} fontSize="xs">
+                    <Text>• <Text as="span" fontWeight="medium">Auto:</Text> 5 min idle + significant changes</Text>
+                    <Text>• <Text as="span" fontWeight="medium">Page close:</Text> Always saves</Text>
+                    <Text>• <Text as="span" fontWeight="medium">Manual:</Text> "Save version" in menu</Text>
+                  </VStack>
+                  <Text mt={2} fontSize="2xs" color="gray.400">
+                    Text syncs in real-time. Versions are restore points.
+                  </Text>
+                </Box>
+              </Tooltip.Content>
+            </Tooltip.Positioner>
+          </Tooltip.Root>
+        </HStack>
         <IconButton
           aria-label="Close history"
           variant="ghost"

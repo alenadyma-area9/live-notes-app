@@ -95,13 +95,27 @@ export function Toolbar({ editor }: ToolbarProps) {
       {/* Separator */}
       <Box w="1px" h={5} bg="gray.300" mx={1} />
 
-      {/* Red Text */}
+      {/* Red Text - toggle between red and default */}
       <IconButton
         aria-label="Red text"
         {...buttonStyle}
-        onClick={() => editor.chain().focus().setColor("#DC2626").run()}
+        onClick={() => {
+          if (editor.isActive('textStyle', { color: '#DC2626' })) {
+            editor.chain().focus().unsetColor().run();
+          } else {
+            editor.chain().focus().setColor("#DC2626").run();
+          }
+        }}
       >
-        <Box w={4} h={4} borderRadius="full" bg="#DC2626" />
+        <Box display="flex" flexDirection="column" alignItems="center" gap={0}>
+          <Text fontWeight="bold" fontSize="sm" lineHeight={1}>A</Text>
+          <Box
+            w={3.5}
+            h="2px"
+            bg={editor.isActive('textStyle', { color: '#DC2626' }) ? "black" : "#DC2626"}
+            borderRadius="full"
+          />
+        </Box>
       </IconButton>
 
       {/* Yellow Highlight */}
