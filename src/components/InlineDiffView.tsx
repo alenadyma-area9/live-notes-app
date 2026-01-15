@@ -741,7 +741,7 @@ export function InlineDiffView({ oldDoc, newDoc, oldVersion, newVersion }: Inlin
       </HStack>
 
       {/* Document */}
-      <Box p={4} minH="400px" fontSize="md" lineHeight="1.8">
+      <Box p={4} fontSize="md" lineHeight="1.8">
         {diffBlocks.length === 0 ? (
           <Text color="gray.500" textAlign="center" py={8}>No content</Text>
         ) : (

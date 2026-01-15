@@ -348,10 +348,24 @@ export default class YjsServer implements Party.Server {
         // Ensure duplicate starts unlocked
         await this.room.storage.put("locked", false);
 
-        // No versions for duplicated note
-        await this.room.storage.put("versions", []);
+        // Create "Duplicated" entry in version history
+        const now = Date.now();
+        const versionId = `v_${now}_duplicated`;
+        const duplicatedVersion: Version = {
+          id: versionId,
+          timestamp: now,
+          title: body.title || "",
+          editedBy: "System",
+          editorColor: "#888888",
+          isCreation: true,
+        };
 
-        // Mark as created so /exists returns true
+        // Store the initial state for this version
+        if (body.state) {
+          await this.room.storage.put(`version:${versionId}`, body.state);
+        }
+
+        await this.room.storage.put("versions", [duplicatedVersion]);
         await this.room.storage.put("hasCreationEntry", true);
 
         return Response.json({ success: true }, { headers: corsHeaders });

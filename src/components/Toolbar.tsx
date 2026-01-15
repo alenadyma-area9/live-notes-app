@@ -118,13 +118,26 @@ export function Toolbar({ editor }: ToolbarProps) {
         </Box>
       </IconButton>
 
-      {/* Yellow Highlight */}
+      {/* Yellow Highlight - toggle on/off */}
       <IconButton
         aria-label="Yellow highlight"
         {...buttonStyle}
-        onClick={() => editor.chain().focus().toggleHighlight({ color: "#fef08a" }).run()}
+        onClick={() => {
+          if (editor.isActive('highlight', { color: '#fef08a' })) {
+            editor.chain().focus().unsetHighlight().run();
+          } else {
+            editor.chain().focus().setHighlight({ color: "#fef08a" }).run();
+          }
+        }}
       >
-        <Box w={4} h={4} borderRadius="sm" bg="#fef08a" border="1px solid" borderColor="gray.400" />
+        <Box
+          w={4}
+          h={4}
+          borderRadius="sm"
+          bg={editor.isActive('highlight', { color: '#fef08a' }) ? "transparent" : "#fef08a"}
+          border="2px solid"
+          borderColor={editor.isActive('highlight', { color: '#fef08a' }) ? "gray.600" : "gray.400"}
+        />
       </IconButton>
 
       {/* Separator */}

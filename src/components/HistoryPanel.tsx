@@ -382,7 +382,7 @@ export function HistoryPanel({
                         <Box w={2} h={2} borderRadius="full" bg="#6366F1" flexShrink={0} />
                       )}
                       <Text fontWeight="medium" fontSize={{ base: "xs", md: "sm" }} lineClamp={1} color={isCreation ? "purple.700" : undefined}>
-                        {isCreation ? "Created" : (version.title || "Untitled")}
+                        {isCreation ? (version.id.includes("duplicated") ? "Duplicated" : "Created") : (version.title || "Untitled")}
                       </Text>
                     </HStack>
                     <HStack gap={1} flexWrap="wrap" ml={isSelected ? 4 : 0}>
