@@ -336,10 +336,10 @@ export function CollaborativeEditor({
     }
   }, [isDeleted, noteId, removeRecentNote]);
 
-  // Lock status check for non-owners
-  // Always check on connect, then periodically if locked
+  // Lock status check - always verify with server on connect
+  // Storage is the source of truth, Y.Doc meta might be stale from persistence
   useEffect(() => {
-    if (!isConnected || isOwner) return;
+    if (!isConnected) return;
 
     const checkLockStatus = async () => {
       try {
@@ -361,11 +361,11 @@ export function CollaborativeEditor({
       }
     };
 
-    // Always check immediately for non-owners
+    // Always check immediately on connect
     checkLockStatus();
 
-    // Continue polling every 5 seconds if locked (to detect unlock)
-    if (isLocked) {
+    // Non-owners: continue polling every 5 seconds if locked (to detect unlock)
+    if (!isOwner && isLocked) {
       const interval = setInterval(checkLockStatus, 5000);
       return () => clearInterval(interval);
     }

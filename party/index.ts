@@ -47,13 +47,12 @@ export default class YjsServer implements Party.Server {
         handler: async (ydoc) => {
           const meta = ydoc.getMap("meta");
 
-          // Only initialize lock from storage if Y.Doc has no lock value yet
-          // This handles fresh connections but won't override user's lock changes
-          if (meta.get("locked") === undefined) {
-            const storedLocked = await this.room.storage.get<boolean>("locked");
-            if (storedLocked !== undefined) {
-              meta.set("locked", storedLocked);
-            }
+          // ALWAYS apply lock from storage - storage is the source of truth
+          // This ensures lock changes made from Home page (without connection) are applied
+          const storedLocked = await this.room.storage.get<boolean>("locked");
+          const currentLocked = meta.get("locked");
+          if (storedLocked !== undefined && storedLocked !== currentLocked) {
+            meta.set("locked", storedLocked);
           }
 
           await this.maybeSaveVersion(ydoc);
