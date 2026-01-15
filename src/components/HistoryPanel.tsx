@@ -420,36 +420,34 @@ export function HistoryPanel({
                     </HStack>
 
                     {/* Action buttons - View and Compare */}
-                    {!isCreation && (
-                      <HStack gap={1} mt={1}>
-                        <Button
-                          size="xs"
-                          variant={isSelected ? "solid" : "ghost"}
-                          bg={isSelected ? "#6366F1" : undefined}
-                          color={isSelected ? "white" : "gray.600"}
-                          _hover={{ bg: isSelected ? "#4F46E5" : "gray.100" }}
-                          onClick={() => !isLoading && handleVersionClick(version)}
-                          loading={isLoading && !isSelected}
-                          flex={1}
-                          fontSize={{ base: "2xs", md: "xs" }}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          color="gray.600"
-                          _hover={{ bg: "gray.100" }}
-                          onClick={() => handleCompare(version)}
-                          loading={isLoading && isSelected}
-                          flex={1}
-                          fontSize={{ base: "2xs", md: "xs" }}
-                        >
-                          <LuGitCompare size={12} />
-                          Diff
-                        </Button>
-                      </HStack>
-                    )}
+                    <HStack gap={1} mt={1}>
+                      <Button
+                        size="xs"
+                        variant={isSelected ? "solid" : "ghost"}
+                        bg={isSelected ? "#6366F1" : undefined}
+                        color={isSelected ? "white" : "gray.600"}
+                        _hover={{ bg: isSelected ? "#4F46E5" : "gray.100" }}
+                        onClick={() => !isLoading && handleVersionClick(version)}
+                        loading={isLoading && !isSelected}
+                        flex={1}
+                        fontSize={{ base: "2xs", md: "xs" }}
+                      >
+                        View
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        color="gray.600"
+                        _hover={{ bg: "gray.100" }}
+                        onClick={() => handleCompare(version)}
+                        loading={isLoading && isSelected}
+                        flex={1}
+                        fontSize={{ base: "2xs", md: "xs" }}
+                      >
+                        <LuGitCompare size={12} />
+                        Diff
+                      </Button>
+                    </HStack>
                   </VStack>
                 </Box>
               );
