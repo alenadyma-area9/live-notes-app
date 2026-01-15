@@ -1050,24 +1050,17 @@ export function CollaborativeEditor({
   };
 
   return (
-    <VStack align="stretch" gap={0} h="100%" flex={1} overflow="hidden">
+    <VStack align="stretch" gap={0} h={{ base: "100dvh", md: "100%" }} flex={1} overflow="hidden">
       {/* Mobile Layout */}
       {isMobile ? (
         <>
-          {/* Mobile Sticky Header Group */}
-          <Box
-            position="sticky"
-            top={0}
-            zIndex={20}
-            bg="white"
-            flexShrink={0}
-          >
           {/* Mobile Top Bar */}
           <Box
             h="52px"
             bg="white"
             borderBottom="1px solid"
             borderColor="gray.100"
+            flexShrink={0}
             display="flex"
             alignItems="center"
             px={2}
@@ -1158,7 +1151,7 @@ export function CollaborativeEditor({
           </Box>
 
           {/* Mobile Title Row */}
-          <Box px={4} py={3} bg="white" borderBottom="1px solid" borderColor="gray.100">
+          <Box px={4} py={3} bg="white" borderBottom="1px solid" borderColor="gray.100" flexShrink={0}>
             {viewMode === "editing" ? (
               <Input
                 value={title}
@@ -1190,26 +1183,11 @@ export function CollaborativeEditor({
 
           {/* Locked indicator bar */}
           {isLocked && (
-            <HStack bg="orange.100" px={4} py={1.5} gap={2}>
+            <HStack bg="orange.100" px={4} py={1.5} gap={2} flexShrink={0}>
               <LuLock size={14} color="#c2410c" />
               <Text fontSize="xs" color="orange.700">This note is locked</Text>
             </HStack>
           )}
-
-          {/* Mobile Toolbar - inside sticky header */}
-          {viewMode === "editing" && editor && (
-            <Box
-              bg="gray.50"
-              borderBottom="1px solid"
-              borderColor="gray.100"
-              overflowX="auto"
-              overflowY="hidden"
-            >
-              <Toolbar editor={editor} />
-            </Box>
-          )}
-          </Box>
-          {/* End Mobile Sticky Header Group */}
         </>
       ) : (
         /* Desktop Top Bar */
@@ -1515,14 +1493,15 @@ export function CollaborativeEditor({
             display="flex"
             flexDirection="column"
           >
-        {/* Desktop Toolbar - mobile has it in sticky header */}
-        {!isMobile && viewMode === "editing" && (
+        {/* Toolbar - same for mobile and desktop */}
+        {viewMode === "editing" && (
           <Box
             bg="gray.50"
             borderBottom="1px solid"
             borderColor="gray.100"
             overflowX="auto"
             overflowY="hidden"
+            flexShrink={0}
           >
             <Toolbar editor={editor} />
           </Box>

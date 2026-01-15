@@ -456,12 +456,7 @@ export function HistoryPanel({
         )}
       </Box>
 
-      {/* Footer */}
-      <Box p={{ base: 2, md: 4 }} borderTop="1px solid" borderColor="gray.100">
-        <Button variant="ghost" size="xs" w="full" onClick={fetchVersions} color="gray.600" fontSize={{ base: "xs", md: "sm" }}>
-          Refresh
-        </Button>
-      </Box>
+
 
       {/* Restore Confirmation Dialog */}
       <ConfirmDialog

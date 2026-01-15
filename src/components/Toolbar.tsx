@@ -88,7 +88,22 @@ export function Toolbar({ editor }: ToolbarProps) {
     const url = prompt("Enter URL:");
     if (url) {
       const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
-      editor.chain().focus().setLink({ href: normalizedUrl }).run();
+
+      // Check if there's selected text
+      const { from, to } = editor.state.selection;
+      const hasSelection = from !== to;
+
+      if (hasSelection) {
+        // Apply link to selected text
+        editor.chain().focus().setLink({ href: normalizedUrl }).run();
+      } else {
+        // No selection - insert URL as link text
+        editor.chain().focus().insertContent({
+          type: 'text',
+          text: normalizedUrl,
+          marks: [{ type: 'link', attrs: { href: normalizedUrl } }]
+        }).run();
+      }
     }
   };
 
